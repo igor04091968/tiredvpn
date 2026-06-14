@@ -78,6 +78,15 @@ var WhitelistedSNIs = []SNIEntry{
 	{SNI: "akamai.net", Weight: 65, Category: "cdn", Description: "Akamai"},
 	{SNI: "fastly.net", Weight: 60, Category: "cdn", Description: "Fastly"},
 
+	// Tier 4b: Developer platforms (empirically pass Russian TSPU SNI-to-IP checks;
+	// TSPU does not validate these domains' IPs against the actual server address).
+	{SNI: "github.com", Weight: 90, Category: "developer", Description: "GitHub"},
+	{SNI: "api.github.com", Weight: 85, Category: "developer", Description: "GitHub API"},
+	{SNI: "raw.githubusercontent.com", Weight: 80, Category: "developer", Description: "GitHub raw"},
+	{SNI: "objects.githubusercontent.com", Weight: 75, Category: "developer", Description: "GitHub objects"},
+	{SNI: "hosting.example", Weight: 85, Category: "developer", Description: "hosting provider"},
+	{SNI: "cloud.example", Weight: 80, Category: "developer", Description: "cloud provider"},
+
 	// Tier 5: Banking (critical infrastructure, never blocked)
 	{SNI: "tinkoff.ru", Weight: 100, Category: "banking", Description: "Tinkoff Bank"},
 	{SNI: "alfabank.ru", Weight: 100, Category: "banking", Description: "Alfa Bank"},
