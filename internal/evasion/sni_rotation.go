@@ -84,8 +84,6 @@ var WhitelistedSNIs = []SNIEntry{
 	{SNI: "api.github.com", Weight: 85, Category: "developer", Description: "GitHub API"},
 	{SNI: "raw.githubusercontent.com", Weight: 80, Category: "developer", Description: "GitHub raw"},
 	{SNI: "objects.githubusercontent.com", Weight: 75, Category: "developer", Description: "GitHub objects"},
-	{SNI: "hosting.example", Weight: 85, Category: "developer", Description: "hosting provider"},
-	{SNI: "cloud.example", Weight: 80, Category: "developer", Description: "cloud provider"},
 
 	// Tier 5: Banking (critical infrastructure, never blocked)
 	{SNI: "tinkoff.ru", Weight: 100, Category: "banking", Description: "Tinkoff Bank"},
