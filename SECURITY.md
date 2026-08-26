@@ -4,8 +4,11 @@
 
 | Version | Supported |
 |---------|-----------|
-| Latest  | Yes       |
-| Older   | No        |
+| 1.5.x (latest release) | Yes |
+| Anything older | No |
+
+Fixes ship in a new release rather than as backports, so "supported" means the
+most recent tag on [github.com/tiredvpn/tiredvpn](https://github.com/tiredvpn/tiredvpn).
 
 ## Reporting a Vulnerability
 
