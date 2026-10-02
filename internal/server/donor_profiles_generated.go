@@ -45,13 +45,3 @@ var donorProfiles = map[string]donorProfile{
 	// yandex.ru (direct, confidence high): 33/33/33 at 40ms and 33/34 at 10ms - count-based
 	"yandex.ru": {CCS: ccsPolicy{Mechanism: ccsCount, Limit: 33}, KeyExchange: kxClassic},
 }
-
-// ourFrontCCSObserved is what the probe saw of our own fronts in the same
-// run. Not a lookup table - the server never matches on these - but the
-// record of what we looked like before the guard existed.
-var ourFrontCCSObserved = map[string]string{
-	"203.0.113.98:995":  "front node D - no limit of either kind: 1200 records over 48s accepted",
-	"203.0.113.76:443":  "front node B - 400 at both pauses, no limit found",
-	"203.0.113.152:995": "front node C - 400 at both pauses, no limit found",
-	"192.0.2.65:995":    "front node A - no direct path from the measuring host; SOCKS would route through our own tunnel and reproduce the confound that invalidated the first GitHub numbers",
-}

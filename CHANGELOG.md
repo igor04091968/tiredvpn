@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.5] - 2026-10-03
+
+### Changed
+
+- **Repository hygiene, no protocol change.** Dropped the unused
+  `ourFrontCCSObserved` map from the generated donor-profile table and its
+  generator — it was carried as a measurement record and never read at runtime.
+  Compiled binaries that had been committed under `bin/` are removed from the
+  tree and `bin/` is now ignored; build artifacts come from `make build`, not
+  version control. Wire format and behaviour are unchanged from 1.11.4.
+
 ## [1.11.4] - 2026-09-21
 
 ### Fixed

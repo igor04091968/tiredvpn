@@ -49,7 +49,7 @@ func main() {
 		fail(fmt.Errorf("donor-profiles.csv has no data rows"))
 	}
 
-	var rows, ourFronts []row
+	var rows []row
 	measuredAt := ""
 	for _, rec := range records[1:] {
 		if len(rec) < 9 {
@@ -64,12 +64,10 @@ func main() {
 			measuredAt: rec[7],
 			note:       rec[8],
 		}
-		// Rows naming an address rather than a hostname are measurements of our
-		// own fronts, kept in the same file as evidence. They are not donors -
-		// nobody sends SNI=203.0.113.98:995 - so they never enter the table
-		// the server looks names up in.
+		// Rows naming an address rather than a hostname are not donors - nobody
+		// sends SNI as an address:port - so they never enter the table the
+		// server looks names up in. Skip them.
 		if strings.Contains(r.sni, ":") {
-			ourFronts = append(ourFronts, r)
 			continue
 		}
 		if r.ccsLimit, err = strconv.Atoi(rec[2]); err != nil {
@@ -119,17 +117,6 @@ func main() {
 	for _, r := range rows {
 		fmt.Fprintf(&b, "\t// %s (%s, confidence %s): %s\n", r.sni, r.path, r.confidence, r.note)
 		fmt.Fprintf(&b, "\t%q: {CCS: %s, KeyExchange: %s},\n", r.sni, ccsExpr(r), kxExpr(r.keyEx))
-	}
-	fmt.Fprintf(&b, "}\n\n")
-
-	// Our own fronts travel with the table as the "before" picture: what a
-	// prober saw of us at the same time it measured the donors.
-	fmt.Fprintf(&b, "// ourFrontCCSObserved is what the probe saw of our own fronts in the same\n")
-	fmt.Fprintf(&b, "// run. Not a lookup table - the server never matches on these - but the\n")
-	fmt.Fprintf(&b, "// record of what we looked like before the guard existed.\n")
-	fmt.Fprintf(&b, "var ourFrontCCSObserved = map[string]string{\n")
-	for _, r := range ourFronts {
-		fmt.Fprintf(&b, "\t%q: %q,\n", r.sni, r.note)
 	}
 	fmt.Fprintf(&b, "}\n")
 

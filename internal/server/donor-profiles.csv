@@ -12,7 +12,3 @@ github.com,count,36,0,classic,high,routing-bypass,2026-08-25,"36/36/36 at 40ms, 
 api.github.com,count,36,0,classic,high,routing-bypass,2026-08-25,"36/36/36 at 40ms, 42 at 10ms - count-based; temporary /32 route around tiredvpn0"
 raw.githubusercontent.com,none,0,0,hybrid,high,routing-bypass,2026-08-25,no limit of either kind: 1200 records over 48s accepted without an alert; Fastly
 objects.githubusercontent.com,none,0,0,hybrid,high,routing-bypass,2026-08-25,"no limit of either kind: 400 at both 40ms and 10ms; Fastly, same infrastructure as raw"
-203.0.113.98:995,none,0,0,classic,high,direct,2026-08-25,front node D - no limit of either kind: 1200 records over 48s accepted
-203.0.113.76:443,none,0,0,classic,high,direct,2026-08-25,"front node B - 400 at both pauses, no limit found"
-203.0.113.152:995,none,0,0,classic,high,direct,2026-08-25,"front node C - 400 at both pauses, no limit found"
-192.0.2.65:995,unmeasured,0,0,classic,none,none,2026-08-25,front node A - no direct path from the measuring host; SOCKS would route through our own tunnel and reproduce the confound that invalidated the first GitHub numbers
