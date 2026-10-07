@@ -6,9 +6,9 @@
 # ---------------- global ----------------
 global:
   image:
-    repository: tiredvpn/tiredvpn
+    repository: ghcr.io/igor04091968/tiredvpn
     # Defaults to .Chart.AppVersion; override here.
-    tag: ""
+    tag: "v1.11.5-igor.1"
     pullPolicy: IfNotPresent
   # List of references to kubernetes.io/dockerconfigjson Secrets.
   imagePullSecrets: []

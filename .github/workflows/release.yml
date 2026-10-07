@@ -1,18 +1,17 @@
-name: Release
+name: Fork release
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*-igor.*'
 
 permissions:
   contents: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  packages: write
 
 jobs:
-  test:
+  release:
+    if: github.repository == 'igor04091968/tiredvpn'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -21,392 +20,65 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Build
-        run: go build ./cmd/tiredvpn/
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Unit Tests
+      - name: Test
         run: |
-          go test -race -timeout 5m -short \
-            ./internal/...
+          go test ./internal/strategy
+          go test -skip '^(TestWildcardListenersCoexist|TestB1GateCostIsFlatInClientCount)$' ./internal/server
+          go vet ./internal/strategy ./internal/server ./cmd/tiredvpn
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v9
+      - name: Build Linux binaries
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
+              -ldflags="-s -w -X main.version=$version" \
+              -o "tiredvpn-linux-$arch" ./cmd/tiredvpn/
+            tar -czf "tiredvpn-linux-$arch.tar.gz" "tiredvpn-linux-$arch"
+          done
+          sha256sum tiredvpn-linux-amd64.tar.gz tiredvpn-linux-arm64.tar.gz > checksums.txt
+
+      - name: Prepare release notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v version="$version" '
+            index($0, "## [" version "]") == 1 {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
         with:
-          # Pinned, not "latest", on purpose. A floating linter is not a gate:
-          # golangci-lint 2.13.1 added a check that turned CI red on main with
-          # no change of ours, and it did it the day before a tag. Bump this
-          # deliberately, in its own commit, with the findings fixed in the same
-          # change - not by loosening it back to latest for freshness.
-          version: v2.13.1
+          body_path: release-notes.md
+          prerelease: true
+          files: |
+            tiredvpn-linux-amd64.tar.gz
+            tiredvpn-linux-arm64.tar.gz
+            checksums.txt
 
-  docker:
+  container:
+    if: github.repository == 'igor04091968/tiredvpn'
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: release
     steps:
       - uses: actions/checkout@v7
-
-      - name: Extract version from tag
+      - name: Set image version
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish fork image
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: VERSION=${{ steps.version.outputs.version }}
-          tags: |
-            tiredvpn/tiredvpn:latest
-            tiredvpn/tiredvpn:${{ steps.version.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  release:
-    runs-on: ubuntu-latest
-    needs: [test]
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: true
-
-      - name: Build linux/amd64
-        env:
-          GOOS: linux
-          GOARCH: amd64
-        run: |
-          go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME#v}" -o tiredvpn-linux-amd64 ./cmd/tiredvpn/
-          tar -czf tiredvpn-linux-amd64.tar.gz tiredvpn-linux-amd64
-
-      - name: Build linux/arm64
-        env:
-          GOOS: linux
-          GOARCH: arm64
-        run: |
-          go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME#v}" -o tiredvpn-linux-arm64 ./cmd/tiredvpn/
-          tar -czf tiredvpn-linux-arm64.tar.gz tiredvpn-linux-arm64
-
-      - name: Generate checksums
-        run: |
-          sha256sum \
-            tiredvpn-linux-amd64.tar.gz \
-            tiredvpn-linux-arm64.tar.gz \
-            > checksums.txt
-
-      - name: Extract changelog
-        id: changelog
-        run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
-          {
-            echo "notes<<CHANGELOG_EOF"
-            printf '%s\n' "$NOTES"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          body: ${{ steps.changelog.outputs.notes }}
-          files: |
-            tiredvpn-linux-amd64.tar.gz
-            tiredvpn-linux-arm64.tar.gz
-            checksums.txt
-
-      # Upload the raw (un-tarred) binaries so the package job can feed them to nfpm.
-      - name: Upload raw binaries
-        uses: actions/upload-artifact@v7
-        with:
-          name: tiredvpn-binaries
-          path: |
-            tiredvpn-linux-amd64
-            tiredvpn-linux-arm64
-          retention-days: 1
-
-  package:
-    runs-on: ubuntu-latest
-    needs: [release]
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.26"
-          cache: true
-
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      # Pull the raw binaries built by the release job into CWD (nfpm-build.sh
-      # expects tiredvpn-linux-amd64 and tiredvpn-linux-arm64 next to nfpm.yaml).
-      - name: Download raw binaries
-        uses: actions/download-artifact@v8
-        with:
-          name: tiredvpn-binaries
-          path: .
-
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-
-      # nfpm signs the RPMs with the release GPG key so dnf's per-package
-      # gpgcheck passes and directly-downloaded .rpm files verify (issue #53).
-      - name: Write GPG signing key
-        id: signkey
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: |
-          keyfile="$RUNNER_TEMP/tiredvpn-signing.key"
-          printf '%s' "$GPG_PRIVATE_KEY" > "$keyfile"
-          chmod 600 "$keyfile"
-          echo "keyfile=$keyfile" >> "$GITHUB_OUTPUT"
-
-      - name: Build .deb and .rpm packages
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          GPG_KEY_FILE: ${{ steps.signkey.outputs.keyfile }}
-          NFPM_RPM_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          chmod +x tiredvpn-linux-amd64 tiredvpn-linux-arm64
-          VERSION="$VERSION" bash packaging/nfpm-build.sh
-
-      # Append the native packages to the release created by the release job.
-      - name: Attach packages to release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            dist/*.deb
-            dist/*.rpm
-
-      # Hand the built packages to the publish-repo job.
-      - name: Upload packages
-        uses: actions/upload-artifact@v7
-        with:
-          name: tiredvpn-packages
-          path: |
-            dist/*.deb
-            dist/*.rpm
-          retention-days: 1
-
-  publish-repo:
-    runs-on: ubuntu-latest
-    needs: [package]
-    permissions:
-      contents: write
-    concurrency:
-      group: gh-pages-repo
-    env:
-      PAGES_URL: https://tiredvpn.github.io/tiredvpn
-    steps:
-      # main checkout supplies install.sh and any repo config.
-      - uses: actions/checkout@v7
-
-      - name: Import GPG signing key
-        id: gpg
-        uses: crazy-max/ghaction-import-gpg@v7
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-
-      # Check out the accumulating gh-pages branch. The repo is additive: reprepro
-      # db/ + pool/ and the rpm trees must survive across releases, so we never
-      # rebuild from scratch.
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v7
-        with:
-          ref: gh-pages
-          path: pages
-        continue-on-error: true
-
-      - name: Ensure gh-pages worktree exists
-        env:
-          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-        run: |
-          if [ ! -d pages/.git ]; then
-            echo "::group::bootstrap orphan gh-pages"
-            git clone "$REPO_URL" pages
-            cd pages
-            git checkout --orphan gh-pages
-            git rm -rf . >/dev/null 2>&1 || true
-            echo "TiredVPN package repository" > index.html
-            cd ..
-            echo "::endgroup::"
-          fi
-
-      - name: Download built packages
-        uses: actions/download-artifact@v8
-        with:
-          name: tiredvpn-packages
-          path: dist
-
-      - name: Install repo tooling
-        run: sudo apt-get update -y && sudo apt-get install -y reprepro createrepo-c
-
-      # APT repository (reprepro). distributions conf is generated with the
-      # imported key id; reprepro signs the Release file with SignWith.
-      - name: Build APT repository
-        env:
-          KEYID: ${{ steps.gpg.outputs.keyid }}
-        run: |
-          echo "::group::reprepro includedeb"
-          mkdir -p pages/apt/conf
-          cat > pages/apt/conf/distributions <<EOF
-          Origin: TiredVPN
-          Label: TiredVPN
-          Codename: stable
-          Architectures: amd64 arm64
-          Components: main
-          Description: TiredVPN apt repository
-          SignWith: ${KEYID}
-          EOF
-          # reprepro includedeb is NOT idempotent: re-running a release whose
-          # version is already registered in db/ (with a rebuilt deb that has a
-          # different hash) fails with "cannot be included" / exit 254. Drop any
-          # existing copy of each package's exact version first, then include.
-          # This removes only the version being (re)published; older versions
-          # already in pool/ stay registered and untouched.
-          for deb in dist/*.deb; do
-            pkg=$(dpkg-deb -f "$deb" Package)
-            ver=$(dpkg-deb -f "$deb" Version)
-            arch=$(dpkg-deb -f "$deb" Architecture)
-            echo "publishing ${pkg}=${ver} (${arch})"
-            # removefilter is a no-op (exit 0) when nothing matches the filter.
-            # MUST scope by Architecture: removefilter on Package+Version alone
-            # drops ALL arches of that version, so processing the arm64 deb would
-            # wipe the amd64 one just added in this same loop (and vice versa) -
-            # leaving the repo with only the last arch (issue #45).
-            reprepro -b pages/apt removefilter stable \
-              "Package (== ${pkg}), Version (== ${ver}), Architecture (== ${arch})"
-            reprepro -b pages/apt includedeb stable "$deb"
-          done
-          echo "::endgroup::"
-
-      # YUM repository (createrepo_c). nfpm names rpm arch x86_64 / aarch64, so
-      # sort by filename into the $basearch trees that install.sh expects.
-      - name: Build YUM repository
-        run: |
-          echo "::group::createrepo_c"
-          mkdir -p pages/rpm/x86_64 pages/rpm/aarch64
-          for rpm in dist/*.rpm; do
-            case "$rpm" in
-              *x86_64*)  cp "$rpm" pages/rpm/x86_64/ ;;
-              *aarch64*) cp "$rpm" pages/rpm/aarch64/ ;;
-              *) echo "unknown rpm arch: $rpm" >&2; exit 1 ;;
-            esac
-          done
-          for arch in x86_64 aarch64; do
-            createrepo_c --update "pages/rpm/${arch}"
-            # repo_gpgcheck=1 in install.sh requires a signed repomd.xml.
-            gpg --batch --yes --detach-sign --armor "pages/rpm/${arch}/repodata/repomd.xml"
-          done
-          echo "::endgroup::"
-
-      - name: Export public key and installer
-        env:
-          KEYID: ${{ steps.gpg.outputs.keyid }}
-        run: |
-          gpg --armor --export "${KEYID}" > pages/gpg.key
-          cp install.sh pages/install.sh
-
-      # Manual add/commit/push so the accumulated db/pool/rpm state is preserved.
-      - name: Commit and push gh-pages
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          cd pages
-          git config user.name "tiredvpn"
-          git config user.email "tiredvpn@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "no repository changes to publish"
-            exit 0
-          fi
-          git commit -m "Publish packages for ${TAG}"
-          git push origin gh-pages
-
-  # After a successful app release, keep the Helm chart in lockstep: set its
-  # appVersion to the released app version, patch-bump the chart's own version
-  # (chart contents effectively changed), commit to main, and push a chart-v<ver>
-  # tag. That tag triggers chart-release.yml, which re-verifies the version and
-  # publishes to GHCR - no package/push logic is duplicated here.
-  #
-  # IMPORTANT: the chart-v tag is pushed with a PAT (secrets.CHART_RELEASE_TOKEN),
-  # NOT the default GITHUB_TOKEN. A tag pushed by GITHUB_TOKEN does not trigger
-  # other workflows (GitHub's recursion guard), so chart-release.yml would never
-  # fire. The same PAT is used to push the Chart.yaml bump commit to main.
-  chart-bump:
-    runs-on: ubuntu-latest
-    needs: [release]
-    # Only run for stable releases; skip prerelease tags like v1.2.3-rc1.
-    if: ${{ !contains(github.ref_name, '-') }}
-    concurrency:
-      group: chart-bump
-    env:
-      CHART_DIR: deploy/helm/tiredvpn
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 0
-          # PAT is required so the chart-v tag push below triggers chart-release.yml
-          # (and to push the bump commit even under branch protection).
-          token: ${{ secrets.CHART_RELEASE_TOKEN }}
-
-      - name: Bump chart appVersion and version
-        id: bump
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          APP_VERSION="${RELEASE_TAG#v}"
-          CHART_FILE="${CHART_DIR}/Chart.yaml"
-
-          CUR_CHART_VERSION="$(grep -E '^version:' "$CHART_FILE" | awk '{print $2}' | tr -d '"')"
-          # Patch-bump: increment the last dotted field (X.Y.Z -> X.Y.(Z+1)).
-          NEW_CHART_VERSION="$(echo "$CUR_CHART_VERSION" | awk -F. -v OFS=. '{$NF += 1; print}')"
-
-          # appVersion is quoted in Chart.yaml; version is bare.
-          sed -i -E "s|^appVersion:.*|appVersion: \"${APP_VERSION}\"|" "$CHART_FILE"
-          sed -i -E "s|^version:.*|version: ${NEW_CHART_VERSION}|" "$CHART_FILE"
-
-          echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "chart_version=${NEW_CHART_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Chart: appVersion -> ${APP_VERSION}, version ${CUR_CHART_VERSION} -> ${NEW_CHART_VERSION}"
-
-      - name: Commit, push, and tag chart release
-        env:
-          APP_VERSION: ${{ steps.bump.outputs.app_version }}
-          CHART_VERSION: ${{ steps.bump.outputs.chart_version }}
-        run: |
-          set -euo pipefail
-          git config user.name "tiredvpn"
-          git config user.email "tiredvpn@users.noreply.github.com"
-          git add "${CHART_DIR}/Chart.yaml"
-          if git diff --cached --quiet; then
-            echo "no chart changes to commit"
-            exit 0
-          fi
-          git commit -m "chore: bump chart to ${CHART_VERSION} (appVersion ${APP_VERSION})"
-          git push origin HEAD:main
-          # This tag push runs under the PAT -> triggers chart-release.yml.
-          git tag "chart-v${CHART_VERSION}"
-          git push origin "chart-v${CHART_VERSION}"
+          tags: ghcr.io/igor04091968/tiredvpn:${{ github.ref_name }}

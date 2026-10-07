@@ -34,8 +34,8 @@ FROM alpine:3.20 AS tun
 
 LABEL org.opencontainers.image.title="TiredVPN (TUN)" \
       org.opencontainers.image.description="DPI-resistant VPN for censored networks — alpine variant with a debug shell" \
-      org.opencontainers.image.url="https://github.com/tiredvpn/tiredvpn" \
-      org.opencontainers.image.source="https://github.com/tiredvpn/tiredvpn" \
+      org.opencontainers.image.url="https://github.com/igor04091968/tiredvpn" \
+      org.opencontainers.image.source="https://github.com/igor04091968/tiredvpn" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
 RUN apk add --no-cache ca-certificates tzdata
@@ -56,8 +56,8 @@ FROM scratch
 
 LABEL org.opencontainers.image.title="TiredVPN" \
       org.opencontainers.image.description="DPI-resistant VPN for censored networks" \
-      org.opencontainers.image.url="https://github.com/tiredvpn/tiredvpn" \
-      org.opencontainers.image.source="https://github.com/tiredvpn/tiredvpn" \
+      org.opencontainers.image.url="https://github.com/igor04091968/tiredvpn" \
+      org.opencontainers.image.source="https://github.com/igor04091968/tiredvpn" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
 # CA certs for TLS connections to external hosts

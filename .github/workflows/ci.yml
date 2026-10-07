@@ -361,7 +361,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'tiredvpn/tiredvpn' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build, test, integration, lint]
     steps:
       - uses: actions/checkout@v7

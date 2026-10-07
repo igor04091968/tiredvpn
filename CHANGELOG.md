@@ -7,6 +7,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.5-igor.1] - 2026-10-07
+
+### Added
+
+- `reality_singleflight`: an experimental REALITY client strategy that starts
+  one TLS handshake at a time across all donor SNI names, with 450–600 ms
+  between starts. Select it with `-strategy reality_singleflight`. The existing
+  `reality` strategy and server wire format are unchanged.
+
+The fork release provides Linux amd64/arm64 binaries and a container image at
+`ghcr.io/igor04091968/tiredvpn:v1.11.5-igor.1`.
+
+The strategy passed the gw2 canary compatibility checks on port 13443. Both
+REALITY variants reached Telegram, WhatsApp and YouTube through that canary.
+There was no failing baseline handshake in this test, so a filtering benefit
+has not been established. See the [test notes](https://github.com/igor04091968/tiredvpn/blob/v1.11.5-igor.1/docs/reality-singleflight.md).
+
 ## [1.11.5] - 2026-10-03
 
 ### Changed

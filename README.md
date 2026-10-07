@@ -2,12 +2,17 @@
 
 > A DPI-resistant VPN designed to work in heavily censored networks.
 
-[![CI](https://github.com/tiredvpn/tiredvpn/actions/workflows/ci.yml/badge.svg)](https://github.com/tiredvpn/tiredvpn/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/tiredvpn/tiredvpn)](https://github.com/tiredvpn/tiredvpn/releases/latest)
-[![Docker Pulls](https://img.shields.io/docker/pulls/tiredvpn/tiredvpn)](https://hub.docker.com/r/tiredvpn/tiredvpn)
+[![CI](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml/badge.svg)](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/igor04091968/tiredvpn)](https://github.com/igor04091968/tiredvpn/releases)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/tiredvpn/tiredvpn)](go.mod)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/igor04091968/tiredvpn)](go.mod)
 ![TiredVPN](img/github.png)
+
+This fork adds the experimental [`reality_singleflight`](docs/reality-singleflight.md)
+strategy. Its fork release is `v1.11.5-igor.1`, with Linux binaries in
+[GitHub Releases](https://github.com/igor04091968/tiredvpn/releases) and a
+container image at `ghcr.io/igor04091968/tiredvpn:v1.11.5-igor.1`.
+The upstream install commands below install upstream TiredVPN, not this fork.
 
 **Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/tiredvpn/tiredvpn-android) — Android client
 
@@ -580,6 +585,7 @@ priority order; `-strategy <id>` pins one.
 | ID | Name | Description |
 |----|------|-------------|
 | `reality` | REALITY Protocol | Impersonates legitimate websites with authentic TLS fingerprints (first in the default order) |
+| `reality_singleflight` | REALITY Single Flight | Experimental variant: one TLS handshake at a time across donor SNI names, with 450–600 ms between starts; select with `-strategy reality_singleflight` |
 | `quic_salamander` | QUIC Salamander | QUIC over UDP with Salamander padding (opt-in: `-quic`) |
 | `quic` | QUIC Tunnel | QUIC transport with version spoofing, draft-29 to bypass TSPU (opt-in: `-quic`) |
 | `seqovl` | Seqovl (Sequence Overlap) | Prepends a secret-marked decoy TLS record before the REALITY ClientHello to desync stateful DPI reassembly (packet-level overlap on Linux via `-seqovl-packet`) |
