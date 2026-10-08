@@ -8,7 +8,8 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/igor04091968/tiredvpn)](go.mod)
 ![TiredVPN](img/github.png)
 
-This fork has two experimental lines:
+This fork has two added strategy lines. Each build has 26 strategy IDs, including
+transports that require explicit configuration:
 
 | Line | Where to find it |
 |------|------------------|
@@ -18,10 +19,11 @@ This fork has two experimental lines:
 The GOST strategy uses GOST TLS 1.3 on a separate TCP listener and sends
 `www.gosuslugi.ru` as SNI. It connects to your TiredVPN server, not the
 Gosuslugi portal, and checks the server certificate against a configured
-SHA-256 pin. Transport and data delivery have been tested; resistance to
-active DPI filtering and similarity to the portal's TLS fingerprint have not
-been established. The two lines are on separate branches and are not combined
-in one release.
+SHA-256 pin. Both added strategies established connections and carried traffic
+in field tests on MTS, Rostelecom, and TTK. They are working transports; these
+tests do not measure which one is more reliable under active DPI filtering or
+whether the GOST handshake matches the portal's TLS fingerprint. The two lines
+are on separate branches and are not combined in one release.
 
 The matching [Android fork](https://github.com/igor04091968/tiredvpn-android)
 has a [v1.12.1-igor.1 APK](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.1)
@@ -58,7 +60,7 @@ Key design goals:
 
 ## Features
 
-- **20+ DPI bypass strategies** with automatic selection and mid-session fallback
+- **26 strategy IDs** in this branch, including opt-in transports, with automatic selection and mid-session fallback
 - **QUIC and TLS transports** with Salamander padding and SNI fragmentation
 - **REALITY protocol** - impersonates legitimate websites with near-perfect TLS fingerprints
 - **HTTP/2 steganography** - hides tunnel data inside real HTTP/2 frames
@@ -92,7 +94,7 @@ Key design goals:
 
 | Feature | TiredVPN | Xray/VLESS | sing-box | Outline |
 |---------|----------|------------|----------|---------|
-| Bypass strategies | 20+ | 3–5 | 5–8 | 1–2 |
+| Strategy IDs (including opt-in) | 26 | 3–5 | 5–8 | 1–2 |
 | Adaptive fallback | ✅ Mid-session | ❌ | Partial | ❌ |
 | TSPU research | [Daily reports](https://github.com/tiredvpn/tiredvpn-measurements) | ❌ | ❌ | ❌ |
 | Post-quantum crypto | ✅ ML-KEM-768 | ❌ | ❌ | ❌ |

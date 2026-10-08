@@ -6,4 +6,9 @@ Select with `-strategy reality_singleflight`. The variant uses the same REALITY 
 
 The 2026-10-07 canary test used gw2 TCP/UDP 13443. All 23 compatible strategy checks passed, including this ID. Both `reality` and `reality_singleflight` returned HTTP 200 for Telegram, WhatsApp and YouTube through the canary. Success proves compatibility and data delivery on that test port. It does not prove better reliability under an active block, or behavior on the production port 12443.
 
+The maintainer also reports successful connections and traffic delivery with
+`reality_singleflight` on MTS, Rostelecom, and TTK. The strategy is working on
+those tested networks. These field checks do not compare its success rate with
+the standard `reality` strategy during a reproducible block.
+
 No current TiredVPN failure has been reproduced on this path; both variants reach the three selected services. To test the benefit, repeat equal-size A/B runs on the same server and port during an actual baseline handshake failure, recording first TLS data-packet times and successful tunneled requests. If the variant fails equally often or is merely slower, the hypothesis is not supported.
