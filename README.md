@@ -8,13 +8,25 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/igor04091968/tiredvpn)](go.mod)
 ![TiredVPN](img/github.png)
 
-This fork adds the experimental [`reality_singleflight`](docs/reality-singleflight.md)
-strategy. Its fork release is `v1.11.5-igor.1`, with Linux binaries in
-[GitHub Releases](https://github.com/igor04091968/tiredvpn/releases) and a
-container image at `ghcr.io/igor04091968/tiredvpn:v1.11.5-igor.1`.
-The upstream install commands below install upstream TiredVPN, not this fork.
+This fork has two experimental lines:
 
-**Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/tiredvpn/tiredvpn-android) — Android client
+| Line | Where to find it |
+|------|------------------|
+| [`reality_singleflight`](docs/reality-singleflight.md) | This `main` branch and the [v1.11.5-igor.1 release](https://github.com/igor04091968/tiredvpn/releases/tag/v1.11.5-igor.1) |
+| `gost_tls13_gosuslugi` | The [v1.12.1-igor.1 core release](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.1-igor.1) and [its setup notes](https://github.com/igor04091968/tiredvpn/blob/v1.12.1-igor.1/GOST-IMPLEMENTATION.md) |
+
+The GOST strategy uses GOST TLS 1.3 on a separate TCP listener and sends
+`www.gosuslugi.ru` as SNI. It connects to your TiredVPN server, not the
+Gosuslugi portal, and checks the server certificate against a configured
+SHA-256 pin. Transport and data delivery have been tested; resistance to
+active DPI filtering and similarity to the portal's TLS fingerprint have not
+been established. The two lines are on separate branches and are not combined
+in one release.
+
+The matching [Android fork](https://github.com/igor04091968/tiredvpn-android)
+has a [v1.12.1-igor.1 APK](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.1)
+with the GOST strategy and its JNI startup fix. The upstream install commands
+below install upstream TiredVPN, not this fork.
 
 ---
 
