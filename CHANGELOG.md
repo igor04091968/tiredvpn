@@ -7,6 +7,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.1-igor.1] - 2026-10-08
+
+### Fixed
+
+- Android JNI now parses the GOST TLS 1.3 certificate pin and listener port flags;
+  the previous Android release ignored them and could not start the GOST strategy.
+
 ## [1.12.0-igor.1] - 2026-10-08
 
 ### Added
