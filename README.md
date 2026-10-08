@@ -20,10 +20,12 @@ The GOST strategy uses GOST TLS 1.3 on a separate TCP listener and sends
 `www.gosuslugi.ru` as SNI. It connects to your TiredVPN server, not the
 Gosuslugi portal, and checks the server certificate against a configured
 SHA-256 pin. Both added strategies established connections and carried traffic
-in field tests on MTS, Rostelecom, and TTK. They are working transports; these
-tests do not measure which one is more reliable under active DPI filtering or
-whether the GOST handshake matches the portal's TLS fingerprint. The two lines
-are on separate branches and are not combined in one release.
+in field tests on MTS, Rostelecom, TTK, and Tele2. The
+[Tele2 test report](docs/field-tests-tele2-2026-10-08.md) records successful
+data-path checks for each strategy on two server endpoints. These tests do not
+measure which strategy is more reliable under active DPI filtering or whether
+the GOST handshake matches the portal's TLS fingerprint. The two lines are on
+separate branches and are not combined in one release.
 
 The matching [Android fork](https://github.com/igor04091968/tiredvpn-android)
 has a [v1.12.1-igor.1 APK](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.1)
