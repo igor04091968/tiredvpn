@@ -21,6 +21,22 @@
 
 Ядро: [1.12.2-igor.3](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.3). Android: [APK 1.12.1-igor.3](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.3). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
 
+## Материалы и компоненты сборки
+
+| Источник | Как использован в этой версии |
+| --- | --- |
+| [TiredVPN](https://github.com/tiredvpn/tiredvpn) и [TiredVPN Android](https://github.com/tiredvpn/tiredvpn-android) | Исходное ядро, сервер, VPN-сервис Android, интерфейс и существующие сетевые стратегии. Изменения форка опубликованы в этих репозиториях с сохранением лицензий. |
+| [gogost v3.0.0](https://gitverse.ru/uzer_007/gogost) | Библиотека ГОСТ и TLS в ядре. Локальная копия дополнена профилем ClientHello и проверками; исходные MIT/BSD-лицензии сохранены. |
+| [CryptoPro CSP 5.0 R4 и TLS с ГОСТ](https://cryptopro.ru/products/csp/tls) | CSP 5.0.13820-7 и curl 8.21.0-CPRO использовали в лаборатории для записи собственных образцов TLS 1.3. По захватам настроены параметры ClientHello. APK и сервер работают на Go-библиотеке; CryptoPro нужен был для получения образца. |
+| [RFC 9367](https://www.rfc-editor.org/rfc/rfc9367.html) | Описание криптонаборов ГОСТ для TLS 1.3, с которым сопоставляли реализацию транспорта. |
+| [«О схеме ограничений РКН в июне 2026-го»](https://habr.com/ru/articles/1044396/) | Наблюдения о сериях TLS-хэндшейков использованы при разработке экспериментальной REALITY Single Flight. |
+| [DPI-CH / dpi-checkers](https://github.com/hyperion-cs/dpi-checkers/tree/main/ru/dpi-ch/docs) | Материалы для планирования сетевой диагностики и проверки гипотез о фильтрации. |
+| [TSPU docs](https://github.com/DanielLavrushin/tspu-docs) | Справочный материал по устройству ТСПУ и возможным признакам сетевых отказов. Автор предупреждает о возможных неточностях конспекта. |
+
+DPI-CH и TSPU docs использовали при исследовании сети. Конкретный профиль ГОСТ построен по собственным захватам CryptoPro; REALITY Single Flight — по наблюдениям из указанной статьи. Результаты проверки связи не подтверждают преимущество при активной фильтрации.
+
+Локальная сборка APK: Go 1.27.1, Java 21, Gradle 9.6.1, Android SDK platform 37, build-tools 36.0.0 и NDK 27.2.12479018. Нативные библиотеки собраны для arm64-v8a, armeabi-v7a и x86_64. APK подписан ключом форка и проверен на выравнивание 16 КБ.
+
 ---
 
 ## What is TiredVPN?
