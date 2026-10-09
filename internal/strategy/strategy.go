@@ -581,7 +581,8 @@ func (m *Manager) ListStrategyIDs() string {
 		baseID := id
 		if idx := strings.Index(id, "_"); idx > 0 {
 			// Keep full ID for strategies like geneva_russia
-			if !strings.HasPrefix(id, "geneva") && !strings.HasPrefix(id, "quic") && !strings.HasPrefix(id, GOSTTLS13StrategyID) {
+			if !strings.HasPrefix(id, "geneva") && !strings.HasPrefix(id, "quic") &&
+				!strings.HasPrefix(id, GOSTTLS13StrategyID) && id != "reality_singleflight" {
 				baseID = id[:idx]
 			}
 		}
@@ -1997,26 +1998,45 @@ func registerTLSStrategies(m *Manager, cfg DefaultManagerConfig, hasServer, hasS
 		return
 	}
 
-	reality := NewREALITYStrategy(m, cfg.Secret)
-	reality.SetFingerprint(cfg.TLSFingerprint)
+	var b1ServerPub []byte
 	if cfg.REALITYServerPubKeyB64 != "" {
 		key, err := customtls.DecodeKeyBase64(cfg.REALITYServerPubKeyB64)
 		if err != nil {
 			log.Warn("REALITY: B1 server key is not valid base64: %v; B1 stays off", err)
 		} else {
-			reality.SetB1(key)
+			b1ServerPub = key
 		}
 	}
-	reality.SetRequireDataV2(cfg.REALITYRequireDataV2)
+	var serverKemPub []byte
 	if cfg.PQEnabled && cfg.PQServerKemPubB64 != "" {
 		kemPub, err := base64.StdEncoding.DecodeString(cfg.PQServerKemPubB64)
 		if err == nil && len(kemPub) > 0 {
-			if err := reality.SetPostQuantum(kemPub); err != nil {
+			serverKemPub = kemPub
+		}
+	}
+	configure := func(reality *REALITYStrategy) {
+		reality.SetFingerprint(cfg.TLSFingerprint)
+		if len(b1ServerPub) > 0 {
+			reality.SetB1(b1ServerPub)
+		}
+		reality.SetRequireDataV2(cfg.REALITYRequireDataV2)
+		if len(serverKemPub) > 0 {
+			if err := reality.SetPostQuantum(serverKemPub); err != nil {
 				log.Warn("REALITY: PQ init failed, using classical: %v", err)
 			}
 		}
 	}
+
+	reality := NewREALITYStrategy(m, cfg.Secret)
+	configure(reality)
 	m.Register(reality)
+	// Keep the experimental variant opt-in by priority. Apply the same
+	// fingerprint and protocol settings, while giving it an independent global
+	// handshake gate.
+	singleFlightReality := NewREALITYStrategy(m, cfg.Secret)
+	configure(singleFlightReality)
+	singleFlightReality.gate = newSingleFlightHandshakeGate()
+	m.Register(&SingleFlightREALITYStrategy{REALITYStrategy: singleFlightReality})
 	if cfg.GOSTTLSEnabled && cfg.GOSTTLSPin != "" {
 		gostStrategy, err := NewGOSTTLS13Strategy(m, cfg.GOSTTLSPin, cfg.GOSTTLSPort)
 		if err != nil {

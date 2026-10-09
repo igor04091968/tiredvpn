@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.1] - 2026-10-09
+
+### Fixed
+
+- Register the opt-in `reality_singleflight` client strategy in the GOST Android
+  core build and report its full ID in supported-strategy diagnostics. It uses
+  the existing REALITY wire protocol; servers need no configuration change.
+- Preserve GOST TLS 1.3 JNI support from `v1.12.1-igor.1`.
+
 ## [1.12.1-igor.1] - 2026-10-08
 
 ### Fixed
