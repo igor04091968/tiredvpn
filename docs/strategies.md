@@ -5,7 +5,7 @@ server looks like on the wire. The client registers a set of them at startup,
 probes them, and picks one. If the active one dies mid-session, the client moves
 to the next.
 
-This page lists what the engine actually registers in v1.11.0, the exact IDs you
+This page lists the 26 strategy IDs registered by this fork's `main` branch, the exact IDs you
 pass to `-strategy`, and where the code is honest about not being finished.
 
 ## Registered strategies
@@ -23,6 +23,7 @@ Sorted by priority. Lower priority = tried earlier.
 |----|------|-----------|---------:|-----------------|
 | `quic_salamander` | QUIC Salamander | QUIC/UDP | 4 | `-quic` and not `-quic-sni-frag` |
 | `reality` | REALITY Protocol | TLS/TCP | 5 | always |
+| `reality_singleflight` | REALITY Single Flight | TLS/TCP | 1000 | always; select explicitly with `-strategy reality_singleflight` |
 | `quic` | QUIC Tunnel | QUIC/UDP | 5 | `-quic` |
 | `http_polling` | HTTP Polling (meek-style) | HTTP/1.1 | 6 | always |
 | `seqovl` | Seqovl | TLS/TCP | 7 | always |

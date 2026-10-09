@@ -1,8 +1,8 @@
 # GOST client ClientHello profile
 
-The opt-in `gost_tls13_gosuslugi` transport uses a ClientHello based on a
+The opt-in GOST TLS 1.3 transport uses a ClientHello based on a
 CryptoPro curl / CSP 5.0 R4 TLS 1.3 capture. The endpoint stays the configured
-TiredVPN server. SNI remains `www.gosuslugi.ru`; no portal connection is made.
+TiredVPN server. The configured cover hostname is used as SNI.
 
 The local `third_party/gogost` copy keeps the cryptographic implementation and
 changes the initial hello before transcript hashing. Client random, session ID,

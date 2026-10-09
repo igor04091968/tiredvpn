@@ -7,6 +7,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.3] - 2026-10-09
+
+### Changed
+
+- Add a CryptoPro CSP 5.0 R4 inspired GOST ClientHello with fresh key shares,
+  strict GOST negotiation, certificate pin and validity checks.
+- Protect Android sockets before TCP connect and log TCP/TLS/pin stages.
+- Add wire profile, HelloRetryRequest, AES refusal and socket protection tests.
+- Transport checks passed on two servers. Filtering resistance remains unverified.
+
 ## [1.12.2-igor.2] - 2026-10-09
 
 ### Fixed

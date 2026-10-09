@@ -2,14 +2,24 @@
 
 > A DPI-resistant VPN designed to work in heavily censored networks.
 
-[![CI](https://github.com/tiredvpn/tiredvpn/actions/workflows/ci.yml/badge.svg)](https://github.com/tiredvpn/tiredvpn/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/tiredvpn/tiredvpn)](https://github.com/tiredvpn/tiredvpn/releases/latest)
+[![CI](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml/badge.svg)](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/igor04091968/tiredvpn)](https://github.com/igor04091968/tiredvpn/releases)
 [![Docker Pulls](https://img.shields.io/docker/pulls/tiredvpn/tiredvpn)](https://hub.docker.com/r/tiredvpn/tiredvpn)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/tiredvpn/tiredvpn)](go.mod)
 ![TiredVPN](img/github.png)
 
-**Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/tiredvpn/tiredvpn-android) — Android client
+**Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/igor04091968/tiredvpn-android) — Android client
+
+## Имитация TLS-профиля ГОСТ
+
+В форке объединены REALITY Single Flight и ГОСТ TLS 1.3. Для имитации клиентского TLS-профиля записали хэндшейки CryptoPro CSP 5.0 R4 и по ним изменили ClientHello: порядок шифров и расширений, группы, алгоритмы подписи, версию TLS-записи и два key share. При каждом подключении клиент создаёт новые случайные значения и ключи; профиль формируется до вычисления хэша транскрипта.
+
+Соединение использует ГОСТ TLS 1.3. Клиент проверяет SHA-256 pin и срок действия сертификата сервера и отклоняет выбор AES. На Android сокет защищается через VpnService.protect до TCP connect; в логах видны адрес подключения, этап TLS и результат проверки pin.
+
+Профиль приближен к CryptoPro. Post-handshake authentication и PSK-only resumption не реализованы, поэтому TLS-отпечатки различаются. Автотесты проверяют структуру ClientHello, свежие ключи, HelloRetryRequest, отказ от AES и защиту сокета. Передача данных проверена на двух серверах; работу нового APK через МТС и устойчивость к фильтрации ещё предстоит проверить.
+
+Ядро: [1.12.2-igor.3](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.3). Android: [APK 1.12.1-igor.3](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.3). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
 
 ---
 
@@ -143,7 +153,7 @@ different pool with `tiredvpn-init --ip-pool <CIDR>`. Details:
 For other distros or hosts without systemd, download the binary directly:
 
 ```bash
-base=https://github.com/tiredvpn/tiredvpn/releases/latest/download
+base=https://github.com/igor04091968/tiredvpn/releases/download
 curl -LO $base/tiredvpn-linux-amd64.tar.gz
 curl -LO $base/checksums.txt
 grep tiredvpn-linux-amd64.tar.gz checksums.txt | sha256sum -c -
@@ -580,7 +590,7 @@ priority order; `-strategy <id>` pins one.
 | ID | Name | Description |
 |----|------|-------------|
 | `reality` | REALITY Protocol | Impersonates legitimate websites with authentic TLS fingerprints (first in the default order) |
-| `gost_tls13_gosuslugi` | GOST TLS 1.3 (Gosuslugi SNI) | Experimental RFC 9367 TLS 1.3 on a separate TCP listener; explicitly opt-in and requires `-gost-tls13-pin` plus server-side GOST certificate/listener. SNI is `www.gosuslugi.ru`. |
+| [ГОСТ strategy ID](GOST-IMPLEMENTATION.md) | GOST TLS 1.3 | Opt-in GOST transport with a CryptoPro-inspired ClientHello, a separate TCP listener and SHA-256 certificate pinning. |
 | `quic_salamander` | QUIC Salamander | QUIC over UDP with Salamander padding (opt-in: `-quic`) |
 | `quic` | QUIC Tunnel | QUIC transport with version spoofing, draft-29 to bypass TSPU (opt-in: `-quic`) |
 | `seqovl` | Seqovl (Sequence Overlap) | Prepends a secret-marked decoy TLS record before the REALITY ClientHello to desync stateful DPI reassembly (packet-level overlap on Linux via `-seqovl-packet`) |

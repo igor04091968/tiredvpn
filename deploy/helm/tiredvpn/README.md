@@ -1,21 +1,15 @@
 # tiredvpn Helm chart
 
-Helm chart for deploying [tiredvpn](https://github.com/tiredvpn/tiredvpn-oss) — DPI-resistant VPN — on Kubernetes. The chart can deploy the server (exit node) and/or the client (SOCKS5 proxy or TUN tunnel) from a single release.
+Helm chart for deploying this [TiredVPN fork](https://github.com/igor04091968/tiredvpn) on Kubernetes. The chart can deploy the server (exit node) and/or the client (SOCKS5 proxy or TUN tunnel) from a single release.
 
-Chart version 0.3.18, `appVersion` 1.11.4.
+This fork's source chart is version 0.3.22 for app version 1.12.2.
+It uses `ghcr.io/igor04091968/tiredvpn:v1.11.5-igor.1` by default. The chart
+is available from this checkout; no fork OCI chart package is published yet.
 
 ## Install
 
 ```bash
-helm install my-tiredvpn oci://ghcr.io/tiredvpn/charts/tiredvpn \
-  --version 0.3.9 -f my-values.yaml
-```
-
-Or from a local checkout:
-
-```bash
-cd deploy/helm/tiredvpn
-helm install my-tiredvpn . -f my-values.yaml
+helm install my-tiredvpn deploy/helm/tiredvpn -f my-values.yaml
 ```
 
 The optional Redis subchart is vendored in `charts/` and pinned by
@@ -112,7 +106,7 @@ API being enabled.
 
 ### 5. Client in TUN mode (DaemonSet, tunnels node traffic)
 
-The default `tiredvpn/tiredvpn` image works as-is — the client configures the TUN device (interface, IP, routes, MSS clamping) itself via netlink/nftables, no `ip`/`iptables` binaries needed. `client.tun.image.repository` is only for overriding to a different image on this DaemonSet specifically (e.g. a debug-shell variant).
+The default fork image works as-is — the client configures the TUN device (interface, IP, routes, MSS clamping) itself via netlink/nftables, no `ip`/`iptables` binaries needed. `client.tun.image.repository` is only for overriding to a different image on this DaemonSet specifically (e.g. a debug-shell variant).
 
 ```bash
 helm install vpn-tunnel deploy/helm/tiredvpn -f - <<EOF
@@ -137,7 +131,7 @@ EOF
 
 | Section | Description |
 |---|---|
-| `global.image.{repository, tag, pullPolicy}` | Shared image. `tag` empty = chart `appVersion` |
+| `global.image.{repository, tag, pullPolicy}` | Fork image and release tag; `tag` empty = chart `appVersion` |
 | `global.imagePullSecrets` | List of `kubernetes.io/dockerconfigjson` Secret references |
 | `nameOverride`, `fullnameOverride` | Resource naming; default is the release name |
 | `commonLabels`, `commonAnnotations` | Applied to all pods/objects |
@@ -224,7 +218,7 @@ helm template my-release deploy/helm/tiredvpn -f deploy/helm/tiredvpn/ci/server-
 
 - Helm: 3.8+
 - Kubernetes: 1.25+ (uses `policy/v1` PDB, `autoscaling/v2` HPA, `networking.k8s.io/v1` NetworkPolicy)
-- tiredvpn: `appVersion` in Chart.yaml, currently `1.11.4`. CI keeps it in step with the application release — a stable `v*` tag bumps `appVersion` to that version and patch-bumps the chart `version`.
+- tiredvpn: `appVersion` in Chart.yaml, currently `1.12.2`. The fork release does not publish an OCI chart.
 
 ## License
 
