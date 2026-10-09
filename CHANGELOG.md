@@ -7,6 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Accept one or two explicit SHA-256 leaf DER certificate pins for a planned GOST
+  certificate rotation. Reject empty, malformed, duplicate or excessive pins.
+  Certificate validity checks remain enforced; no peer-provided trust fallback.
+- Test both pin positions, same-key renewal, removal of the old pin, unknown
+  certificates, expired/future certificates, malformed DER and JNI forwarding.
+
 ## [1.12.2-igor.3] - 2026-10-09
 
 ### Changed

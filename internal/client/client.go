@@ -147,7 +147,7 @@ type Config struct {
 	// The key is public: it ships alongside the secret because that channel
 	// already exists, not because it needs protecting.
 	REALITYServerPubKey string
-	GOSTTLSPin          string // SHA-256 of DER server certificate; enables experimental GOST TLS 1.3 strategy.
+	GOSTTLSPin          string // One or two comma-separated SHA-256 leaf DER pins; enables experimental GOST TLS 1.3 strategy.
 	GOSTTLSPort         int    // Separate TCP listener port for the experimental GOST TLS strategy.
 
 	// RTT Masking

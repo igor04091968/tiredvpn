@@ -6,7 +6,22 @@ This branch adds an opt-in `gost_tls13_gosuslugi` client strategy and a separate
 
 Server: provide a server-owned GOST certificate and PKCS #8 private key, then set all three options. For example, `-gost-listen 127.0.0.1:12444 -gost-cert /etc/tiredvpn/gost-server.crt -gost-key /etc/tiredvpn/gost-server.key`. The GOST listener is disabled unless all three values are present and binds independently from the normal listener.
 
-Client: calculate the SHA-256 digest of the leaf certificate's DER bytes (for PEM input: `openssl x509 -in gost-server.crt -outform DER | sha256sum`) and set both `-gost-tls13-pin <64-hex-digest>` and `-gost-tls13-port 12444`; select explicitly with `-strategy gost_tls13_gosuslugi`. The pin covers the full leaf certificate, so renewing that certificate requires updating client configs. Never use `-insecure` or omit the pin.
+Client: calculate the SHA-256 digest of the leaf certificate's DER bytes (for PEM input: `openssl x509 -in gost-server.crt -outform DER | sha256sum`) and set both `-gost-tls13-pin <64-hex-digest>` and `-gost-tls13-port 12444`; select explicitly with `-strategy gost_tls13_gosuslugi`. The pin covers the full leaf certificate, so renewing that certificate requires updating client configs; the rotation procedure below allows an overlap. Never use `-insecure` or omit the pin.
+
+## Certificate rotation with two trusted pins
+
+The client option `-gost-tls13-pin` accepts one SHA-256 leaf DER digest, or two distinct digests separated by a comma: `-gost-tls13-pin OLD_PIN,NEW_PIN`. Each digest must contain exactly 64 hexadecimal characters. Empty entries, duplicate pins and more than two pins are rejected. Whitespace around a digest and uppercase hex are accepted.
+
+Trust is restricted to these explicitly configured certificates. Both pins have equal trust during the overlap; the peer cannot add or replace a pin. The client still checks the certificate validity period. It never switches to an unverified certificate or to a public-key-only match. Reissuing a certificate with the same key changes its full DER pin.
+
+For a planned rotation:
+
+1. Generate the replacement certificate and calculate its SHA-256 DER pin locally. Transfer the pin to the operator and clients through the existing trusted configuration channel. Do not learn it from an unauthenticated connection to the server.
+2. Install a client build that supports two pins, then distribute `OLD_PIN,NEW_PIN` while the server still uses the old certificate. Confirm that every client which must retain access received the update.
+3. Replace the server certificate and key using the normal backup/restart procedure. Confirm that updated clients connect and complete pinned GOST TLS and authenticated tunnel checks.
+4. After the planned overlap, distribute only `NEW_PIN`. Verify that the old certificate is refused and remove the old key from active use.
+
+On Android the existing `gostPin` URL parameter and `gostTls13Pin` JSON field carry the same comma-separated string. Import/export preserve both pins. A profile with one pin remains compatible. APK `1.12.1-igor.3` and core tag `v1.12.2-igor.3` predate this change and accept only one pin; use a build containing the rotation change before distributing dual-pin profiles. No certificate or production profile is changed automatically by this implementation.
 
 ## Production deployment
 

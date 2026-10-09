@@ -1579,7 +1579,7 @@ type DefaultManagerConfig struct {
 	Secret         []byte       // Shared secret for authentication
 	RelayNodes     []*RelayNode // Mesh relay nodes (optional)
 	CoverHost      string       // Host to impersonate for HTTP/2 stego
-	GOSTTLSPin     string       // SHA-256 of the RFC 9367 server leaf certificate DER; empty disables the candidate.
+	GOSTTLSPin     string       // One or two comma-separated SHA-256 server leaf DER pins; empty disables the candidate.
 	GOSTTLSPort    int          // Explicit separate TCP listener port for the experimental strategy.
 	GOSTTLSEnabled bool         // Register only when explicitly selected by strategy ID.
 

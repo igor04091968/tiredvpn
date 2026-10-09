@@ -13,7 +13,7 @@ resumption. This profile therefore has a different JA3 from CryptoPro.
 
 Only TLS 1.3 GOST cipher suites can be negotiated. A standard cipher advertised
 in the template causes an explicit failure at ServerHello if selected. The
-strategy still verifies the configured SHA-256 leaf certificate pin and validity
+strategy still verifies one or two explicitly configured SHA-256 leaf certificate pins and validity
 period before mux dispatch. Probe and Connect protect Android sockets before SYN.
 The server's profile and all other strategies are unchanged.
 
@@ -29,3 +29,5 @@ bytes. Handshake tests cover GOST, a GOST HelloRetryRequest, AES refusal, wrong 
 and mux echo. Deployment requires a new Android native library and APK; existing
 servers accept the profile without an update. Compatibility checks on a working
 access network do not establish effectiveness against filtering on mobile data.
+
+Certificate rotation uses an explicit two-pin overlap. See [the rotation procedure](../GOST-IMPLEMENTATION.md#certificate-rotation-with-two-trusted-pins). No new trust is learned from the server.

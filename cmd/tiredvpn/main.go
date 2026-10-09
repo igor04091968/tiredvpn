@@ -398,7 +398,7 @@ ADVANCED EVASION:
   -reality-server-pubkey string
         Server's static REALITY public key, base64. Set it to speak the B1 transport; empty uses the legacy one.
   -gost-tls13-pin string
-        Enable experimental GOST TLS 1.3 with exact SHA-256 DER certificate pin
+        Enable experimental GOST TLS 1.3 with one or two comma-separated SHA-256 DER certificate pins
   -gost-tls13-port int
         Separate GOST TLS listener port; required with -strategy gost_tls13_gosuslugi
 
@@ -466,7 +466,7 @@ type serverFlagOpts struct {
 // without editing runClient, which everyone shares.
 func registerClientTransportFlags(fs *flag.FlagSet, cfg *client.Config) {
 	fs.StringVar(&cfg.REALITYServerPubKey, "reality-server-pubkey", "", "Server's static REALITY public key, base64. Set it to speak the B1 transport; empty uses the legacy one. No probing, no downgrade on error.")
-	fs.StringVar(&cfg.GOSTTLSPin, "gost-tls13-pin", "", "Enable experimental GOST TLS 1.3 strategy; SHA-256 hex fingerprint of the server leaf certificate (DER).")
+	fs.StringVar(&cfg.GOSTTLSPin, "gost-tls13-pin", "", "Enable experimental GOST TLS 1.3 strategy; One or two distinct comma-separated SHA-256 hex fingerprints of trusted server leaf certificates (DER).")
 	fs.IntVar(&cfg.GOSTTLSPort, "gost-tls13-port", 0, "Required separate TCP listener port for strategy gost_tls13_gosuslugi.")
 }
 

@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseClientArgsGOSTTLS13Flags(t *testing.T) {
-	pin := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	pin := strings.Repeat("a", 64) + "," + strings.Repeat("b", 64)
 	args := []string{
 		"-server", "203.0.113.10:12443",
 		"-secret", "client-secret",

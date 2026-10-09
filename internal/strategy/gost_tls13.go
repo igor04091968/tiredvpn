@@ -27,7 +27,7 @@ const GOSTTLS13StrategyID = "gost_tls13_gosuslugi"
 // still the configured TiredVPN server; GosuslugiSNI is only sent as SNI.
 type GOSTTLS13Strategy struct {
 	manager *Manager
-	pin     [sha256.Size]byte
+	pins    [][sha256.Size]byte
 	port    int
 }
 
@@ -39,13 +39,25 @@ func NewGOSTTLS13Strategy(manager *Manager, pinHex string, port int) (*GOSTTLS13
 	if port < 1 || port > 65535 {
 		return nil, fmt.Errorf("gost_tls13: listener port must be explicitly set to 1..65535")
 	}
-	decoded, err := hex.DecodeString(strings.TrimSpace(pinHex))
-	if err != nil || len(decoded) != sha256.Size {
-		return nil, fmt.Errorf("gost_tls13: certificate pin must be 64 hexadecimal SHA-256 characters")
+	parts := strings.Split(pinHex, ",")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("gost_tls13: configure one or two certificate pins")
 	}
+	for _, part := range parts {
+		decoded, err := hex.DecodeString(strings.TrimSpace(part))
+		if err != nil || len(decoded) != sha256.Size {
+			return nil, fmt.Errorf("gost_tls13: each certificate pin must be 64 hexadecimal SHA-256 characters")
+		}
+		var pin [sha256.Size]byte
+		copy(pin[:], decoded)
+		if len(s.pins) == 1 && s.pins[0] == pin {
+			return nil, fmt.Errorf("gost_tls13: certificate pins must be distinct")
+		}
+		s.pins = append(s.pins, pin)
+	}
+
 	s.manager = manager
 	s.port = port
-	copy(s.pin[:], decoded)
 	return &s, nil
 }
 
@@ -115,26 +127,9 @@ func (s *GOSTTLS13Strategy) serverAddr(ctx context.Context) (string, error) {
 // raw certificate callback (its verified-chain type differs from crypto/x509).
 func (s *GOSTTLS13Strategy) handshakeMux(ctx context.Context, raw net.Conn) (net.Conn, error) {
 	config := gosttls.GOSTConfig(&gosttls.Config{
-		ServerName:         GosuslugiSNI,
-		InsecureSkipVerify: true,
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*gostx509.Certificate) error {
-			if len(rawCerts) == 0 {
-				return fmt.Errorf("gost_tls13: server sent no certificate")
-			}
-			got := sha256.Sum256(rawCerts[0])
-			if got != s.pin {
-				return fmt.Errorf("gost_tls13: server certificate pin mismatch")
-			}
-			leaf, err := gostx509.ParseCertificate(rawCerts[0])
-			if err != nil {
-				return fmt.Errorf("gost_tls13: parse pinned server certificate: %w", err)
-			}
-			now := time.Now()
-			if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
-				return fmt.Errorf("gost_tls13: pinned server certificate is outside its validity period")
-			}
-			return nil
-		},
+		ServerName:            GosuslugiSNI,
+		InsecureSkipVerify:    true,
+		VerifyPeerCertificate: s.verifyPeerCertificate,
 	})
 	config.CryptoProClientHello = true
 	tlsConn := gosttls.Client(raw, config)
@@ -170,6 +165,33 @@ func (s *GOSTTLS13Strategy) handshakeMux(ctx context.Context, raw net.Conn) (net
 	}
 	_ = raw.SetDeadline(time.Time{})
 	return &gostTLSMuxConn{Conn: stream, sess: sess, raw: raw}, nil
+}
+
+// Trust only the explicitly configured leaf DER hashes. Renewal with the same
+// public key still requires a new pin; no certificate is learned from the peer.
+func (s *GOSTTLS13Strategy) verifyPeerCertificate(rawCerts [][]byte, _ [][]*gostx509.Certificate) error {
+	if len(rawCerts) == 0 {
+		return fmt.Errorf("gost_tls13: server sent no certificate")
+	}
+	got := sha256.Sum256(rawCerts[0])
+	matched := false
+	for _, pin := range s.pins {
+		if got == pin {
+			matched = true
+		}
+	}
+	if !matched {
+		return fmt.Errorf("gost_tls13: server certificate pin mismatch")
+	}
+	leaf, err := gostx509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return fmt.Errorf("gost_tls13: parse pinned server certificate: %w", err)
+	}
+	now := time.Now()
+	if now.Before(leaf.NotBefore) || now.After(leaf.NotAfter) {
+		return fmt.Errorf("gost_tls13: pinned server certificate is outside its validity period")
+	}
+	return nil
 }
 
 type gostTLSMuxConn struct {
