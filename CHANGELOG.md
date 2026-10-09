@@ -7,6 +7,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.2] - 2026-10-09
+
+### Fixed
+
+- Align core, client, server, and Helm version metadata at `1.12.2` for the
+  Single Flight/GOST compatibility release.
+
 ## [1.12.2-igor.1] - 2026-10-09
 
 ### Fixed
