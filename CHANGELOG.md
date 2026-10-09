@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.4] - 2026-10-10
+
 ### Added
 
 - Accept one or two explicit SHA-256 leaf DER certificate pins for a planned GOST

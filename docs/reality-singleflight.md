@@ -12,3 +12,12 @@ those tested networks. These field checks do not compare its success rate with
 the standard `reality` strategy during a reproducible block.
 
 No current TiredVPN failure has been reproduced on this path; both variants reach the three selected services. To test the benefit, repeat equal-size A/B runs on the same server and port during an actual baseline handshake failure, recording first TLS data-packet times and successful tunneled requests. If the variant fails equally often or is merely slower, the hypothesis is not supported.
+
+## Current release
+
+REALITY Single Flight and GOST TLS 1.3 are combined in core
+[v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4)
+and Android [v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4).
+Earlier canary and operator checks above refer to the versions tested then.
+Certificate rotation changes the client GOST verification; Single Flight keeps
+the same handshake gate and server wire protocol.

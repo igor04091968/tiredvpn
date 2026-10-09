@@ -11,6 +11,15 @@
 
 **Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/igor04091968/tiredvpn-android) — Android client
 
+## Добавленные стратегии
+
+| Стратегия | Что делает |
+| --- | --- |
+| REALITY Single Flight | Ограничивает клиент одним TLS-хэндшейком одновременно для всех donor SNI и разносит начала подключений на 450–600 мс. Использует существующий протокол REALITY и настройки сервера. |
+| ГОСТ TLS 1.3 | Отдельный TLS-транспорт с ГОСТ-криптонабором, ClientHello по образцу CryptoPro, проверкой срока сертификата и одним либо двумя доверенными pin. |
+
+Обе стратегии включены в новые сборки ядра и Android. Совместимость и передачу данных проверяли отдельно; преимущество при активной фильтрации пока не измерено.
+
 ## Имитация TLS-профиля ГОСТ
 
 В форке объединены REALITY Single Flight и ГОСТ TLS 1.3. Для имитации клиентского TLS-профиля записали хэндшейки CryptoPro CSP 5.0 R4 и по ним изменили ClientHello: порядок шифров и расширений, группы, алгоритмы подписи, версию TLS-записи и два key share. При каждом подключении клиент создаёт новые случайные значения и ключи; профиль формируется до вычисления хэша транскрипта.
@@ -19,7 +28,9 @@
 
 Профиль приближен к CryptoPro. Post-handshake authentication и PSK-only resumption не реализованы, поэтому TLS-отпечатки различаются. Автотесты проверяют структуру ClientHello, свежие ключи, HelloRetryRequest, отказ от AES и защиту сокета. Передача данных проверена на двух серверах; работу нового APK через МТС и устойчивость к фильтрации ещё предстоит проверить.
 
-Ядро: [1.12.2-igor.3](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.3). Android: [APK 1.12.1-igor.3](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.3). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
+Ядро: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4). Android: [APK 1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
+
+[Версии, состав и проверки релизов](docs/RELEASES-RU.md).
 
 ## Материалы и компоненты сборки
 

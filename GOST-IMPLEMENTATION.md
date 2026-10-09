@@ -1,12 +1,14 @@
-# Experimental GOST TLS 1.3 transport
+# GOST TLS 1.3 transport
 
-This branch adds an opt-in `gost_tls13_gosuslugi` client strategy and a separate GOST TLS listener. The strategy is registered only when explicitly selected with `-strategy gost_tls13_gosuslugi`. The client connects to the configured server address at the explicitly configured GOST port, sends SNI `www.gosuslugi.ru`, requires RFC 9367 GOST TLS 1.3, verifies the server leaf certificate by its exact SHA-256 DER pin, then starts the existing TypeMux/smux TiredVPN stream. It does not use Gosuslugi credentials or certificates.
+The fork combines REALITY Single Flight with an opt-in GOST TLS 1.3 transport. The client connects to the configured TiredVPN server on a separate TCP listener, negotiates only RFC 9367 GOST suites, checks the server leaf certificate against one or two explicitly trusted SHA-256 DER pins and checks certificate validity before starting TypeMux/smux.
 
-## Local canary configuration
+The ClientHello follows locally captured CryptoPro CSP 5.0 R4 samples. Fresh random values and key shares are generated on each connection. Post-handshake authentication and PSK-only resumption are omitted, so this is an approximation of that profile. See [the profile implementation](docs/gost-cryptopro-clienthello.md).
 
-Server: provide a server-owned GOST certificate and PKCS #8 private key, then set all three options. For example, `-gost-listen 127.0.0.1:12444 -gost-cert /etc/tiredvpn/gost-server.crt -gost-key /etc/tiredvpn/gost-server.key`. The GOST listener is disabled unless all three values are present and binds independently from the normal listener.
+## Configuration
 
-Client: calculate the SHA-256 digest of the leaf certificate's DER bytes (for PEM input: `openssl x509 -in gost-server.crt -outform DER | sha256sum`) and set both `-gost-tls13-pin <64-hex-digest>` and `-gost-tls13-port 12444`; select explicitly with `-strategy gost_tls13_gosuslugi`. The pin covers the full leaf certificate, so renewing that certificate requires updating client configs; the rotation procedure below allows an overlap. Never use `-insecure` or omit the pin.
+Server: provide a server-owned GOST certificate and PKCS #8 private key, then set all three options: `-gost-listen 127.0.0.1:12444 -gost-cert /etc/tiredvpn/gost-server.crt -gost-key /etc/tiredvpn/gost-server.key`. The dedicated listener is disabled unless all options are set. Keep the key private and choose the bind address for the intended deployment.
+
+Client: compute the full leaf DER digest with `openssl x509 -in gost-server.crt -outform DER | sha256sum`, then set `-gost-tls13-pin PIN -gost-tls13-port 12444 -strategy gost_tls13_gosuslugi`. The pin covers the full certificate, including a same-key renewal. Two pins can overlap during rotation as described below. There is no insecure trust fallback for this transport.
 
 ## Certificate rotation with two trusted pins
 
@@ -21,42 +23,21 @@ For a planned rotation:
 3. Replace the server certificate and key using the normal backup/restart procedure. Confirm that updated clients connect and complete pinned GOST TLS and authenticated tunnel checks.
 4. After the planned overlap, distribute only `NEW_PIN`. Verify that the old certificate is refused and remove the old key from active use.
 
-On Android the existing `gostPin` URL parameter and `gostTls13Pin` JSON field carry the same comma-separated string. Import/export preserve both pins. A profile with one pin remains compatible. APK `1.12.1-igor.3` and core tag `v1.12.2-igor.3` predate this change and accept only one pin; use a build containing the rotation change before distributing dual-pin profiles. No certificate or production profile is changed automatically by this implementation.
+On Android the existing `gostPin` URL parameter and `gostTls13Pin` JSON field carry the same comma-separated string. Import/export preserve both pins. A profile with one pin remains compatible. APK `1.12.1-igor.4` and core `v1.12.2-igor.4` support two pins. Previous `.3` releases accept only one pin; upgrade clients before distributing dual-pin profiles. No certificate or production profile is changed automatically by this implementation.
 
-## Production deployment
+## Releases and deployment state
 
-On 2026-10-08, version `1.12.0-igor.1` was installed on `gw` and `gw2`. The
-existing TCP/QUIC listener remains on port 12443; the opt-in GOST listener uses
-TCP port 12444. Both nodes use the same operator-generated GOST certificate,
-and the Android fork pins its SHA-256 DER fingerprint. The private key is
-root-only on each node and is not in the repository or APK.
+[Core v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) and [Android v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4) contain the client pin-rotation change. The Android native core is pinned to fce4f440843f0f0fad3cacdb236f5729a489f5be.
 
-The deployment was tested from the Rostelecom-connected laptop over the public
-network: the client negotiated GOST TLS 1.3, authenticated to the TiredVPN
-server, and carried HTTPS requests to Telegram API, WhatsApp Web, and YouTube.
-This confirms the deployed transport and data path. It does not demonstrate
-that the strategy resists filtering on other networks or under active DPI.
+Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. Publishing `.4` does not replace running binaries or certificates. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
 
-Rollback on either node: restore `/opt/tiredvpn/tiredvpn.pre-gost-20261008` to
-`/opt/tiredvpn/tiredvpn`, remove
-`/etc/systemd/system/tiredvpn.service.d/30-gost-tls.conf`, then run
-`systemctl daemon-reload` and `systemctl restart tiredvpn`. The original
-listener and service configuration are preserved by that procedure.
+## Verification and limits
 
-## Verification performed
+- GOST handshake and TypeMux/smux echo with one pin and either position of a two-pin list.
+- Unknown certificates, same-key renewal without its new pin, removal of the old pin, expired/future certificates, malformed DER and empty certificate chains are refused.
+- Invalid, empty, repeated and excessive pins are rejected. Android JSON and URL import/export retain both explicitly configured pins; JNI forwarding retains the complete value.
+- Go focused tests with the race detector and go vet passed. The Android configuration/import suite passed 56 tests.
+- ClientHello wire structure, fresh key shares, HelloRetryRequest and refusal of AES suites have regression coverage. Android socket protection runs before TCP connect.
+- Before/after the 2026-10-09 server rollout, both nodes passed new/old GOST, REALITY, Single Flight and QUIC Salamander tunnel checks.
 
-- Local GOST TLS 1.3 handshake using the candidate library at both ends.
-- Exact certificate pin accepted; wrong pin rejected.
-- TypeMux/smux echo round-trip.
-- Server-side GOST TLS ingress integration test negotiates a GOST suite and dispatches TypeMux/smux on the dedicated handler.
-- Live production round-trip through `gw2`: client reported GOST TLS 1.3, and HTTP requests returned Telegram API 302, WhatsApp 200, and YouTube 204. The temporary test client was deleted.
-- Public TCP 12444 reachability verified separately for both nodes; both continue to serve the original listener on 12443.
-- Strategy/server/client/CLI package compile and focused tests.
-- Earlier full `internal/strategy`, `internal/server`, `internal/client`, and CLI test run: strategy, client and CLI passed; server suite had two unrelated environment/timing failures: IPv6 unavailable (`TestWildcardListenersCoexist`) and a flaky timing assertion (`TestB1GateCostIsFlatInClientCount`). The final isolated candidate tests were rerun after the dedicated-listener changes and passed.
-
-## Still required
-
-- Independent GOST TLS peer interoperability and comparison with the TLS profile of an actual Gosuslugi client.
-- Malformed/truncated handshake and deadline/cancellation cases.
-- Linux release build matrix and Android JNI/ABI build with Go 1.27.1.
-- pcap comparison on Rostelecom, dedicated isolated canary, and controlled A/B measurements.
+CryptoPro curl completed TLS 1.3 and HTTP checks against the server in the laboratory. Other peers had documented limitations, so these measurements do not establish universal interoperability. Android MTS operation and improved reliability under active filtering still require controlled field tests. Private packet captures, credentials and signing keys are excluded from the public repository.
