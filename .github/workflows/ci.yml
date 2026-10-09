@@ -29,6 +29,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: GOST ClientHello profile regressions
+        run: go -C third_party/gogost test -race ./gosttls -run 'TestCryptoPro|TestGOSTConfigUsesStrict' -count=1 -timeout=60s
+
   test:
     runs-on: ubuntu-latest
     steps:

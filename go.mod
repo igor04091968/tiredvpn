@@ -42,3 +42,6 @@ require (
 // socket fd when bind(2) fails (see third_party/netlink/NOTICE). Drop this
 // replace once an upstream release carries the fix.
 replace github.com/vishvananda/netlink => ./third_party/netlink
+
+// Local opt-in CryptoPro ClientHello profile; see third_party/gogost/NOTICE.tiredvpn.
+replace gitverse.ru/uzer_007/gogost/v3 => ./third_party/gogost

@@ -9,8 +9,11 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/tiredvpn/tiredvpn/internal/log"
+	"github.com/tiredvpn/tiredvpn/internal/protect"
 	"github.com/tiredvpn/tiredvpn/internal/protocol"
 	"github.com/xtaci/smux"
 	"gitverse.ru/uzer_007/gogost/v3/gosttls"
@@ -59,7 +62,7 @@ func (s *GOSTTLS13Strategy) Probe(ctx context.Context, target string) error {
 	if err != nil {
 		return err
 	}
-	d := net.Dialer{Timeout: 3 * time.Second}
+	d := gostProtectedDialer(3 * time.Second)
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err == nil {
 		_ = c.Close()
@@ -72,12 +75,31 @@ func (s *GOSTTLS13Strategy) Connect(ctx context.Context, target string) (net.Con
 	if err != nil {
 		return nil, err
 	}
-	d := net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
+	log.Info("GOST TLS: dialing TCP %s (SNI=%s)", addr, GosuslugiSNI)
+	d := gostProtectedDialer(15 * time.Second)
 	raw, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
+		log.Debug("GOST TLS: TCP dial failed for %s: %v", addr, err)
 		return nil, fmt.Errorf("gost_tls13: TCP dial: %w", err)
 	}
+	log.Info("GOST TLS: TCP connected to %s; starting TLS handshake", addr)
 	return s.handshakeMux(ctx, raw)
+}
+
+// Protect before connect: after the TUN is active, even the TCP SYN must bypass
+// the VPN. Linux without an Android protector and other platforms are no-ops.
+func gostProtectedDialer(timeout time.Duration) *net.Dialer {
+	return &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second,
+		Control: func(_, _ string, raw syscall.RawConn) error {
+			var protectErr error
+			if err := raw.Control(func(fd uintptr) {
+				protectErr = protect.ProtectRawFd(int(fd))
+			}); err != nil {
+				return err
+			}
+			return protectErr
+		},
+	}
 }
 
 func (s *GOSTTLS13Strategy) serverAddr(ctx context.Context) (string, error) {
@@ -114,6 +136,7 @@ func (s *GOSTTLS13Strategy) handshakeMux(ctx context.Context, raw net.Conn) (net
 			return nil
 		},
 	})
+	config.CryptoProClientHello = true
 	tlsConn := gosttls.Client(raw, config)
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = raw.SetDeadline(deadline)
@@ -121,6 +144,7 @@ func (s *GOSTTLS13Strategy) handshakeMux(ctx context.Context, raw net.Conn) (net
 		_ = raw.SetDeadline(time.Now().Add(20 * time.Second))
 	}
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		log.Debug("GOST TLS: handshake failed: %v", err)
 		_ = raw.Close()
 		return nil, fmt.Errorf("gost_tls13: TLS handshake: %w", err)
 	}
@@ -128,6 +152,7 @@ func (s *GOSTTLS13Strategy) handshakeMux(ctx context.Context, raw net.Conn) (net
 		_ = raw.Close()
 		return nil, fmt.Errorf("gost_tls13: peer did not negotiate a GOST TLS 1.3 cipher suite")
 	}
+	log.Info("GOST TLS: TLS 1.3 negotiated (suite=0x%04x), certificate pin verified", tlsConn.ConnectionState().CipherSuite)
 	if err := protocol.WriteDispatch(tlsConn, protocol.TypeMux); err != nil {
 		_ = raw.Close()
 		return nil, fmt.Errorf("gost_tls13: mux dispatch: %w", err)

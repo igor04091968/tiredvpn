@@ -1,0 +1,12 @@
+.bench/
+.release-check/
+.codex*/
+.agents/
+.gigacode/
+PERFORMANCE*
+PERFOMANCE*
+performance*
+perfomance*
+*.prof
+*.test
+*.test.exe

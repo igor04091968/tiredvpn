@@ -1,0 +1,23 @@
+Source: gitverse.ru/uzer_007/gogost/v3 v3.0.0, copied from the verified Go module cache.
+Original MIT license and Go BSD licenses are preserved.
+
+TiredVPN changes are confined to gosttls:
+- opt-in CryptoProClientHello Config flag, preserved by Clone;
+- measured CSP 5.0 R4 initial ClientHello ordering, groups, signatures,
+  cipher advertisement, two fresh key shares and TLS 1.2 record version;
+- extension ordering happens before transcript hashing and supports HRR;
+- reject standard suites at ServerHello even though the template advertises AES;
+- existing GOST cipher/group compatibility checks remain in force;
+- preserve strict config for signature verification.
+
+Two deliberate differences from the captured reference:
+- no post_handshake_auth extension (49), which this library does not implement;
+- only psk_dhe_ke, not psk_ke: forward-secret resumption is the supported mode.
+The profile disallows ECH, ALPN, session cache and client certificates.
+No copied random bytes, session IDs, private keys or captured key shares.
+Other clients and the server keep the original default profile.
+This is a ClientHello approximation, not a complete CryptoPro implementation
+or evidence of improved resistance to active network filtering.
+
+Regression tests run explicitly in root CI/release workflows because Go's
+./... pattern does not traverse nested modules.

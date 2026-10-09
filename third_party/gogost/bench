@@ -1,0 +1,46 @@
+#!/bin/sh
+set -eu
+
+MODE="${1:-quick}"
+if [ "$#" -gt 0 ]; then
+	shift
+fi
+OUT_DIR="${BENCH_OUT_DIR:-.bench}"
+PKGS="${BENCH_PKGS:-./...}"
+BENCH="${BENCH:-.}"
+mkdir -p "$OUT_DIR"
+
+case "$MODE" in
+quick)
+	exec go test -run '^$' -bench "$BENCH" -benchmem -benchtime="${BENCHTIME:-200ms}" "$@" $PKGS
+	;;
+stable)
+	OUT="$OUT_DIR/bench-$(date +%Y%m%d-%H%M%S).txt"
+	go test -run '^$' -bench "$BENCH" -benchmem -benchtime="${BENCHTIME:-700ms}" -count="${COUNT:-10}" "$@" $PKGS | tee "$OUT"
+	printf '%s\n' "$OUT"
+	;;
+profile)
+	PKG="${BENCH_PKG:-./gost3413/modes}"
+	NAME="${BENCH_NAME:-BenchmarkPreparedModes/Kuznechik/MGM/1KiB/Seal}"
+	STAMP="$(date +%Y%m%d-%H%M%S)"
+	go test -run '^$' -bench "$NAME" -benchmem -benchtime="${BENCHTIME:-2s}" \
+		-cpuprofile "$OUT_DIR/$STAMP.cpu.prof" -memprofile "$OUT_DIR/$STAMP.mem.prof" "$@" "$PKG" \
+		| tee "$OUT_DIR/$STAMP.profile.txt"
+	go tool pprof -top "$OUT_DIR/$STAMP.cpu.prof" > "$OUT_DIR/$STAMP.cpu.top.txt"
+	go tool pprof -top "$OUT_DIR/$STAMP.mem.prof" > "$OUT_DIR/$STAMP.mem.top.txt"
+	printf '%s\n' "$OUT_DIR/$STAMP"
+	;;
+compare)
+	BASE="${1:?usage: ./bench compare old.txt new.txt}"
+	NEW="${2:?usage: ./bench compare old.txt new.txt}"
+	if command -v benchstat >/dev/null 2>&1; then
+		exec benchstat "$BASE" "$NEW"
+	fi
+	printf '%s\n' "benchstat not found; install golang.org/x/perf/cmd/benchstat or compare manually" >&2
+	exit 1
+	;;
+*)
+	printf '%s\n' "usage: ./bench [quick|stable|profile|compare]" >&2
+	exit 2
+	;;
+esac
