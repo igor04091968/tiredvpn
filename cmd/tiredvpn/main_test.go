@@ -53,11 +53,14 @@ func TestRegisterServerFlags_GOSTTLSListener(t *testing.T) {
 	cfg := &server.Config{}
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
 	registerServerFlags(fs, cfg)
-	if err := fs.Parse([]string{"-gost-listen", "127.0.0.1:12444", "-gost-cert", "server-gost.crt", "-gost-key", "server-gost.key"}); err != nil {
+	if err := fs.Parse([]string{"-gost-listen", "127.0.0.1:12444", "-gost-cert", "server-gost.crt", "-gost-key", "server-gost.key", "-gost-max-handshakes", "128"}); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.GOSTListenAddr != "127.0.0.1:12444" || cfg.GOSTCertFile != "server-gost.crt" || cfg.GOSTKeyFile != "server-gost.key" {
 		t.Fatalf("GOST listener flags not wired to config: %+v", cfg)
+	}
+	if cfg.GOSTMaxHandshakes != 128 {
+		t.Fatalf("GOST handshake limit flag = %d, want 128", cfg.GOSTMaxHandshakes)
 	}
 }
 

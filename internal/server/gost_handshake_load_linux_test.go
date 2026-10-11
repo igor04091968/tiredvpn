@@ -66,9 +66,10 @@ func TestGOSTHandshakeLoad(t *testing.T) {
 	}
 	defer listener.Close()
 	ctx := &serverContext{
-		cfg:           &Config{},
-		gostTLSConfig: gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}}),
-		metrics:       NewMetrics(nil),
+		cfg:              &Config{},
+		gostTLSConfig:    gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}}),
+		gostHandshakeSem: make(chan struct{}, defaultMaxConcurrentGOSTHandshakes),
+		metrics:          NewMetrics(nil),
 	}
 	doneEvents := make(chan struct{}, defaultMaxConcurrentConns)
 	onHandlerDone = func(uint64, time.Time) { doneEvents <- struct{}{} }
@@ -88,7 +89,7 @@ func TestGOSTHandshakeLoad(t *testing.T) {
 			continue
 		}
 		t.Run(fmt.Sprintf("concurrency_%d", concurrency), func(t *testing.T) {
-			result, report := runGOSTLoadPhase(t, listener.Addr().String(), concurrency, ctx.metrics)
+			result, report := runGOSTLoadPhase(t, listener.Addr().String(), concurrency, ctx.metrics, ctx.gostHandshakeSem)
 			if len(result.Failures) != 0 {
 				t.Fatalf("%d/%d GOST handshakes failed; first: %s", len(result.Failures), concurrency, result.Failures[0])
 			}
@@ -188,7 +189,7 @@ func TestGOSTHandshakeLoadClient(t *testing.T) {
 	fmt.Println(string(encoded))
 }
 
-func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Metrics) (gostLoadClientResult, string) {
+func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Metrics, handshakeSem chan struct{}) (gostLoadClientResult, string) {
 	t.Helper()
 	runtime.GC()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -213,7 +214,7 @@ func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Me
 		t.Fatalf("start GOST client helper: %v", err)
 	}
 	var peakRSS uint64
-	var peakGoroutines, peakActive int
+	var peakGoroutines, peakActive, peakGOSTHandshakes int
 	samplingDone := make(chan struct{})
 	samplerExited := make(chan struct{})
 	go func() {
@@ -233,6 +234,9 @@ func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Me
 				}
 				if count := int(atomic.LoadInt64(&metrics.activeConnections)); count > peakActive {
 					peakActive = count
+				}
+				if count := len(handshakeSem); count > peakGOSTHandshakes {
+					peakGOSTHandshakes = count
 				}
 			}
 		}
@@ -275,13 +279,16 @@ func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Me
 		return time.Duration(result.HandshakeNanos[(len(result.HandshakeNanos)-1)*p/100])
 	}
 	formatBytes := func(n uint64) string { return fmt.Sprintf("%.1fMiB", float64(n)/(1024*1024)) }
-	report := fmt.Sprintf("GOST load: concurrency=%d success=%d/%d rejected=%d elapsed=%s throughput=%.1f/s handshake_ms[min/p50/p90/p99/max]=%.2f/%.2f/%.2f/%.2f/%.2f server_cpu_user/sys=%d/%dms rss_baseline/peak/delta=%s/%s/%s server_goroutines_baseline/peak/delta=%d/%d/%d active_connections_peak=%d",
+	if peakGOSTHandshakes > cap(handshakeSem) {
+		t.Fatalf("observed %d simultaneous GOST handshakes, configured limit is %d", peakGOSTHandshakes, cap(handshakeSem))
+	}
+	report := fmt.Sprintf("GOST load: concurrency=%d success=%d/%d rejected=%d elapsed=%s throughput=%.1f/s handshake_ms[min/p50/p90/p99/max]=%.2f/%.2f/%.2f/%.2f/%.2f server_cpu_user/sys=%d/%dms rss_baseline/peak/delta=%s/%s/%s server_goroutines_baseline/peak/delta=%d/%d/%d active_connections_peak=%d gost_handshakes_peak=%d/%d",
 		concurrency, len(result.HandshakeNanos), len(result.HandshakeNanos)+len(result.Failures), rejected, elapsed,
 		float64(concurrency)/elapsed.Seconds(), time.Duration(result.HandshakeNanos[0]).Seconds()*1000,
 		percentile(50).Seconds()*1000, percentile(90).Seconds()*1000, percentile(99).Seconds()*1000,
 		time.Duration(result.HandshakeNanos[len(result.HandshakeNanos)-1]).Seconds()*1000,
 		(userAfter-userBefore)/1000, (sysAfter-sysBefore)/1000, formatBytes(rssBefore), formatBytes(peakRSS), formatBytes(peakRSS-rssBefore),
-		goroutinesBefore, peakGoroutines, peakGoroutines-goroutinesBefore, peakActive)
+		goroutinesBefore, peakGoroutines, peakGoroutines-goroutinesBefore, peakActive, peakGOSTHandshakes, cap(handshakeSem))
 	if rejected != 0 {
 		t.Fatalf("admission rejected %d connections during GOST load phase", rejected)
 	}

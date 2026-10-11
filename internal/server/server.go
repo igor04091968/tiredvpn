@@ -64,6 +64,12 @@ const (
 	// memory ceiling bounded while still serving a real client population.
 	defaultRelayMaxConcurrentConns = 256
 
+	// defaultMaxConcurrentGOSTHandshakes caps CPU-heavy GOST negotiations
+	// independently of the shared TCP connection limit. Loopback measurements
+	// showed rising tail latency above this range on a 4-logical-CPU host.
+	defaultMaxConcurrentGOSTHandshakes = 512
+	gostHandshakeTimeout               = 30 * time.Second
+
 	// defaultRelayIdleTimeout is the idle deadline for a relay->upstream TUN
 	// bridge when Config.RelayIdleTimeout is unset. If no bytes flow in either
 	// direction for this long the bridge is force-closed to reap half-open
@@ -101,6 +107,37 @@ func initAdmissionControl(cfg *Config) {
 	}
 	admissionSem = make(chan struct{}, limit)
 	log.Info("Admission control: max %d concurrent incoming connections", limit)
+}
+
+func newGOSTHandshakeSemaphore(cfg *Config) (chan struct{}, int, error) {
+	if cfg == nil {
+		return nil, 0, fmt.Errorf("GOST handshake limit: nil server config")
+	}
+	if cfg.GOSTMaxHandshakes < 0 {
+		return nil, 0, fmt.Errorf("GOST handshake limit must not be negative")
+	}
+	limit := cfg.GOSTMaxHandshakes
+	if limit == 0 {
+		limit = defaultMaxConcurrentGOSTHandshakes
+	}
+	return make(chan struct{}, limit), limit, nil
+}
+
+// performGOSTHandshake holds one GOST crypto slot only while Handshake runs.
+// The same 30-second budget bounds both slot waiting and TLS negotiation.
+func performGOSTHandshake(sem chan struct{}, handshake func() error) error {
+	if sem == nil {
+		return handshake()
+	}
+	timer := time.NewTimer(gostHandshakeTimeout)
+	defer timer.Stop()
+	select {
+	case sem <- struct{}{}:
+		defer func() { <-sem }()
+		return handshake()
+	case <-timer.C:
+		return fmt.Errorf("GOST handshake admission timed out after %s", gostHandshakeTimeout)
+	}
 }
 
 // Admission hooks are test-only instrumentation for timestamping slot lifecycle.
@@ -300,12 +337,15 @@ type Config struct {
 	GOSTListenAddr string // Separate experimental TLS-GOST listener address; empty disables it.
 	GOSTCertFile   string // Optional RFC 9367 GOST TLS 1.3 certificate; enables the experimental GOST TLS path.
 	GOSTKeyFile    string
-	Secret         []byte // Single secret mode (backward compatible)
-	FakeWebRoot    string
-	Debug          bool
-	TunIP          net.IP
-	TunName        string // TUN interface name (default: tiredvpn0)
-	TunMTU         int    // TUN interface MTU (0 = tun.DefaultMTU = 1280)
+	// GOSTMaxHandshakes limits concurrent GOST TLS handshakes only. Zero selects
+	// defaultMaxConcurrentGOSTHandshakes; established sessions release this slot.
+	GOSTMaxHandshakes int
+	Secret            []byte // Single secret mode (backward compatible)
+	FakeWebRoot       string
+	Debug             bool
+	TunIP             net.IP
+	TunName           string // TUN interface name (default: tiredvpn0)
+	TunMTU            int    // TUN interface MTU (0 = tun.DefaultMTU = 1280)
 
 	// Multi-client mode (Redis)
 	RedisAddr string // e.g., "localhost:6379"
@@ -477,17 +517,18 @@ type Config struct {
 
 // serverContext holds runtime context for multi-client mode
 type serverContext struct {
-	cfg            *Config
-	registry       *ClientRegistry
-	store          *RedisStore
-	upstreamDialer *UpstreamDialer // for multi-hop mode
-	metrics        *Metrics        // Prometheus metrics
-	tlsConfig      *tls.Config     // TLS config for non-REALITY connections
-	gostTLSConfig  *gosttls.Config // Optional strict RFC 9367 TLS 1.3 profile
-	gostListener   net.Listener
-	ipPool         *IPPool          // IP pool for TUN mode
-	sharedTUN      *SharedTUN       // Shared TUN device for all clients
-	knockReplay    knockReplayGuard // anti-probe knock replay window (zero value usable)
+	cfg              *Config
+	registry         *ClientRegistry
+	store            *RedisStore
+	upstreamDialer   *UpstreamDialer // for multi-hop mode
+	metrics          *Metrics        // Prometheus metrics
+	tlsConfig        *tls.Config     // TLS config for non-REALITY connections
+	gostTLSConfig    *gosttls.Config // Optional strict RFC 9367 TLS 1.3 profile
+	gostListener     net.Listener
+	gostHandshakeSem chan struct{}
+	ipPool           *IPPool          // IP pool for TUN mode
+	sharedTUN        *SharedTUN       // Shared TUN device for all clients
+	knockReplay      knockReplayGuard // anti-probe knock replay window (zero value usable)
 
 	// donorDialer opens the TCP connection to a REALITY donor ("host:443").
 	// Nil means net.DialTimeout, which is what production uses; tests set it
@@ -598,6 +639,13 @@ func Run(cfg *Config) error {
 		return fmt.Errorf("experimental GOST TLS requires all three options: -gost-listen, -gost-cert and -gost-key")
 	}
 	if cfg.GOSTCertFile != "" {
+		sem, limit, err := newGOSTHandshakeSemaphore(cfg)
+		if err != nil {
+			_ = listener.Close()
+			return err
+		}
+		srvCtx.gostHandshakeSem = sem
+		log.Info("GOST TLS handshake concurrency limit: %d", limit)
 		cert, err := gosttls.LoadX509KeyPair(cfg.GOSTCertFile, cfg.GOSTKeyFile)
 		if err != nil {
 			_ = listener.Close()
@@ -884,9 +932,9 @@ func handleGOSTTLSConnection(conn net.Conn, srvCtx *serverContext, connID uint64
 		srvCtx.metrics.IncConnections()
 		defer srvCtx.metrics.DecConnections()
 	}
-	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(gostHandshakeTimeout))
 	gconn := gosttls.Server(conn, srvCtx.gostTLSConfig)
-	if err := gconn.Handshake(); err != nil {
+	if err := performGOSTHandshake(srvCtx.gostHandshakeSem, gconn.Handshake); err != nil {
 		logger.Debug("Handshake failed: %v", err)
 		return
 	}

@@ -484,6 +484,7 @@ func registerServerFlags(fs *flag.FlagSet, cfg *server.Config) *serverFlagOpts {
 	fs.StringVar(&cfg.GOSTListenAddr, "gost-listen", "", "Separate experimental GOST TLS 1.3 listener address (example :12444); requires -gost-cert and -gost-key")
 	fs.StringVar(&cfg.GOSTCertFile, "gost-cert", "", "Optional RFC 9367 GOST TLS 1.3 certificate in PEM (enables experimental GOST transport)")
 	fs.StringVar(&cfg.GOSTKeyFile, "gost-key", "", "Private key matching -gost-cert (PKCS #8 PEM)")
+	fs.IntVar(&cfg.GOSTMaxHandshakes, "gost-max-handshakes", 0, "Maximum concurrent GOST TLS handshakes (0 = default 512); the slot is released after TLS negotiation")
 	opts.secret = fs.String("secret", "", "Shared secret for authentication (single-client mode)")
 	fs.StringVar(&cfg.FakeWebRoot, "fake-root", "./www", "Fake website root directory")
 	// Operator-set hostname that unauthorized REALITY probes are transparently

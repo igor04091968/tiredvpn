@@ -35,7 +35,7 @@ Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordin
 
 ## Admission capacity
 
-The GOST listener shares the server admission semaphore. It is acquired before the handler starts TLS and released by a defer when the handler exits. The handler applies a 30-second deadline to the GOST handshake. The opt-in [stalled-handshake test](docs/GOST-ADMISSION-STRESS.md) measures timeout cleanup; the [GOST crypto-load test](docs/GOST-CRYPTO-LOAD.md) exercises real GOST TLS ClientHellos and reports server CPU, RSS, goroutines and handshake latency. In one loopback run, the default 4096 slots admitted 4096 simultaneous GOST handshakes, with p99 latency of 9.35 seconds and about 98 MiB extra server RSS. A separate GOST handshake limit should be evaluated against target-server measurements before it is set.
+The GOST listener shares the 4096-connection admission semaphore and has a separate `-gost-max-handshakes` limit (default 512). A connection waits for a crypto slot under the same 30-second deadline; that slot is released immediately when TLS `Handshake()` succeeds or fails, before mux/session handling. The opt-in [stalled-handshake test](docs/GOST-ADMISSION-STRESS.md) measures timeout cleanup; the [GOST crypto-load test](docs/GOST-CRYPTO-LOAD.md) exercises real GOST TLS ClientHellos and reports server CPU, RSS, goroutines and handshake latency. Two uncapped loopback runs with the default 4096 TCP limit admitted 4096 simultaneous GOST handshakes, with p99 latency from 9.35 to 11.90 seconds and about 98–100 MiB extra server RSS. The default crypto cap is a conservative starting point from this 4-logical-CPU laptop, not a production optimum; tune it against target-server measurements.
 
 ## Verification and limits
 

@@ -39,7 +39,11 @@ func TestGOSTTLSIngressRoutesMuxOnSeparateHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := &serverContext{cfg: &Config{}, gostTLSConfig: gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}})}
+	ctx := &serverContext{
+		cfg:              &Config{},
+		gostTLSConfig:    gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}}),
+		gostHandshakeSem: make(chan struct{}, 1),
+	}
 	clientRaw, serverRaw := net.Pipe()
 	done := make(chan struct{})
 	go func() { handleGOSTTLSConnection(serverRaw, ctx, 77); close(done) }()
@@ -50,6 +54,13 @@ func TestGOSTTLSIngressRoutesMuxOnSeparateHandler(t *testing.T) {
 	}
 	if state := clientTLS.ConnectionState(); state.Version != gosttls.VersionTLS13 || !isGOSTSuiteServer(state.CipherSuite) {
 		t.Fatalf("unexpected negotiated state: version=%x suite=%04x", state.Version, state.CipherSuite)
+	}
+	releasedBy := time.Now().Add(time.Second)
+	for len(ctx.gostHandshakeSem) != 0 && time.Now().Before(releasedBy) {
+		time.Sleep(time.Millisecond)
+	}
+	if occupied := len(ctx.gostHandshakeSem); occupied != 0 {
+		t.Fatalf("GOST handshake slot still occupied after TLS completed: %d", occupied)
 	}
 	if err := protocol.WriteDispatch(clientTLS, protocol.TypeMux); err != nil {
 		t.Fatal(err)
