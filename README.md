@@ -28,7 +28,7 @@
 
 Профиль приближен к CryptoPro. Post-handshake authentication и PSK-only resumption не реализованы, поэтому TLS-отпечатки различаются. Автотесты проверяют структуру ClientHello, свежие ключи, HelloRetryRequest, отказ от AES и защиту сокета. Передача данных проверена.
 
-Ядро: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4). Android: [APK 1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
+Ядро: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.7). Android: [APK 1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
 
 [Версии, состав и проверки релизов](docs/RELEASES-RU.md).
 
