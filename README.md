@@ -1,335 +1,97 @@
-# TiredVPN
+# TiredVPN — fork
 
-> A DPI-resistant VPN designed to work in heavily censored networks.
+> Клиент-серверный VPN на Go с несколькими транспортами и настраиваемой стратегией подключения.
 
 [![CI](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml/badge.svg)](https://github.com/igor04091968/tiredvpn/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/igor04091968/tiredvpn)](https://github.com/igor04091968/tiredvpn/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/tiredvpn/tiredvpn)](https://hub.docker.com/r/tiredvpn/tiredvpn)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/tiredvpn/tiredvpn)](go.mod)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/igor04091968/tiredvpn)](go.mod)
 ![TiredVPN](img/github.png)
 
-**Related repositories:** [tiredvpn/tiredvpn-android](https://github.com/igor04091968/tiredvpn-android) — Android client
+**Связанный проект:** [Android-клиент TiredVPN](https://github.com/igor04091968/tiredvpn-android).
 
-## Добавленные стратегии
+## Изменения этого форка
 
-| Стратегия | Что делает |
+| Стратегия | Реализация |
 | --- | --- |
-| REALITY Single Flight | Ограничивает клиент одним TLS-хэндшейком одновременно для всех donor SNI и разносит начала подключений на 450–600 мс. Использует существующий протокол REALITY и настройки сервера. |
-| ГОСТ TLS 1.3 | Отдельный TLS-транспорт с ГОСТ-криптонабором, ClientHello по образцу CryptoPro, проверкой срока сертификата и одним либо двумя доверенными pin. |
+| REALITY Single Flight | Экспериментальный вариант REALITY. Для каждого donor SNI ограничивает одновременные TLS-хэндшейки двумя и задаёт между их началами интервал 250 мс плюс случайные 0–250 мс. Это ограничение действует отдельно для каждого SNI. |
+| ГОСТ TLS 1.3 | Экспериментальный отдельный TCP-транспорт на ГОСТ-криптографии. TLS ClientHello настроен по собственным захватам CryptoPro CSP 5.0 R4. Сертификат проверяется по сроку действия и одному или двум заранее указанным SHA-256 pin. |
 
-Обе стратегии включены в новые сборки ядра и Android. Совместимость и передачу данных проверяли отдельно; преимущество при активной фильтрации пока не измерено.
+Single Flight использует существующий REALITY-протокол. ГОСТ и Single Flight требуют явного выбора; наличие стратегий не означает, что подключение пройдёт через конкретную сеть. Проверки совместимости и передачи данных не измеряют устойчивость к блокировкам.
 
-## Имитация TLS-профиля ГОСТ
+## Профиль ГОСТ
 
-В форке объединены REALITY Single Flight и ГОСТ TLS 1.3. Для имитации клиентского TLS-профиля записали хэндшейки CryptoPro CSP 5.0 R4 и по ним изменили ClientHello: порядок шифров и расширений, группы, алгоритмы подписи, версию TLS-записи и два key share. При каждом подключении клиент создаёт новые случайные значения и ключи; профиль формируется до вычисления хэша транскрипта.
+В локальной лаборатории сняты образцы TLS 1.3 с CryptoPro CSP 5.0 R4; по ним настроен профиль начального ClientHello. APK и сервер используют реализацию Go и библиотеку ГОСТ, а не CryptoPro. ClientHello содержит новые случайные значения и ключевые доли при каждом подключении. Профиль отличается от CryptoPro: post-handshake authentication и PSK-only resumption не реализованы.
 
-Соединение использует ГОСТ TLS 1.3. Клиент проверяет SHA-256 pin и срок действия сертификата сервера . Для плановой ротации добавлена поддержка двух заранее заданных pin через запятую; после перехода на новый сертификат старый pin удаляют. [Порядок ротации](GOST-IMPLEMENTATION.md#certificate-rotation-with-two-trusted-pins). На Android сокет защищен через VpnService.protect до TCP connect; в логах видны адрес подключения, этап TLS и результат проверки pin.
+Клиент принимает только ГОСТ-наборы TLS 1.3, проверяет DER-сертификат сервера по pin и проверяет срок действия сертификата. Для плановой замены сертификата можно временно задать два pin; автоматического доверия новому сертификату нет. [Порядок ротации](GOST-IMPLEMENTATION.md#certificate-rotation-with-two-trusted-pins). На Android сокеты защищаются через `VpnService.protect` до TCP connect.
 
-Профиль приближен к CryptoPro. Post-handshake authentication и PSK-only resumption не реализованы, поэтому TLS-отпечатки различаются. Автотесты проверяют структуру ClientHello, свежие ключи, HelloRetryRequest, отказ от AES и защиту сокета. Передача данных проверена.
+## Текущие релизы
 
-Ядро: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.7). Android: [APK 1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7). [Подробности реализации](docs/gost-cryptopro-clienthello.md). [Предыдущие проверки на Tele2](docs/field-tests-tele2-2026-10-08.md) относятся к прежней версии.
+- Ядро Linux: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4), архивы amd64/arm64 и контрольные суммы.
+- Android: [1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7), versionCode 34.
+- [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
-[Версии, состав и проверки релизов](docs/RELEASES-RU.md).
+[Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
 
-## Материалы и компоненты сборки
+## Материалы и компоненты
 
-| Источник | Как использован в этой версии |
+| Источник | Как использован |
 | --- | --- |
-| [TiredVPN](https://github.com/tiredvpn/tiredvpn) и [TiredVPN Android](https://github.com/tiredvpn/tiredvpn-android) | Исходное ядро, сервер, VPN-сервис Android, интерфейс и существующие сетевые стратегии. Изменения форка опубликованы в этих репозиториях с сохранением лицензий. |
-| [gogost v3.0.0](https://gitverse.ru/uzer_007/gogost) | Библиотека ГОСТ и TLS в ядре. Локальная копия дополнена профилем ClientHello и проверками; исходные лицензии сохранены. |
-| [CryptoPro CSP 5.0 R4 и TLS с ГОСТ](https://cryptopro.ru/products/csp/tls) | CSP 5.0.13820-7 и curl 8.21.0-CPRO использовали в лаборатории для записи собственных образцов TLS 1.3. По захватам настроены параметры ClientHello. APK и сервер работают на Go-библиотеке; CryptoPro использовали для получения образца. |
-| [RFC 9367](https://www.rfc-editor.org/rfc/rfc9367.html) | Описание криптонаборов ГОСТ для TLS 1.3, с которым сопоставляли реализацию транспорта. |
-| [«О схеме ограничений РКН в июне 2026-го»](https://habr.com/ru/articles/1044396/) | Наблюдения о сериях TLS-хэндшейков из статьм были использованы при разработке экспериментальной REALITY Single Flight. |
-| [DPI-CH / dpi-checkers](https://github.com/hyperion-cs/dpi-checkers/tree/main/ru/dpi-ch/docs) | Материалы для планирования сетевой диагностики и проверки гипотез о фильтрации. |
-| [TSPU docs](https://github.com/DanielLavrushin/tspu-docs) | Справочный материал по устройству ТСПУ и возможным признакам сетевых отказов. |
+| [TiredVPN](https://github.com/tiredvpn/tiredvpn) и [TiredVPN Android](https://github.com/tiredvpn/tiredvpn-android) | Исходный проект ядра и Android-клиента; изменения форка находятся в репозиториях `igor04091968`. |
+| [gogost v3.0.0](https://gitverse.ru/uzer_007/gogost) | ГОСТ-криптография и TLS в ядре; локальная копия дополнена профилем ClientHello и тестами. Лицензии компонентов сохранены. |
+| [CryptoPro CSP 5.0 R4](https://cryptopro.ru/products/csp/tls) | CSP 5.0.13820-7 и curl 8.21.0-CPRO использовали для собственных образцов TLS 1.3. CryptoPro не входит в APK и серверный бинарник. |
+| [RFC 9367](https://www.rfc-editor.org/rfc/rfc9367.html) | Спецификация ГОСТ-криптонаборов TLS 1.3. |
+| [Статья о сериях TLS-хэндшейков](https://habr.com/ru/articles/1044396/) | Материал для гипотезы, проверяемой в экспериментальной REALITY Single Flight; эффективность в конкретных сетях отдельно не доказана. |
+| [DPI-CH](https://github.com/hyperion-cs/dpi-checkers/tree/main/ru/dpi-ch/docs) и [TSPU docs](https://github.com/DanielLavrushin/tspu-docs) | Справочные материалы при исследовании сетевой диагностики и фильтрации. |
 
-DPI-CH и TSPU docs использовали при исследовании сети. Конкретный профиль ГОСТ построен по собственным захватам CryptoPro; REALITY Single Flight — по наблюдениям из указанной статьи. 
-
-Локальная сборка APK: Go 1.27.1, Java 21, Gradle 9.6.1, Android SDK platform 37, build-tools 36.0.0 и NDK 27.2.12479018. Нативные библиотеки собраны для arm64-v8a, armeabi-v7a и x86_64. APK подписан ключом форка и проверен.
+Ядро форка собирается с Go 1.27.1. Android-клиент использует закреплённую версию ядра и собирается для `arm64-v8a`, `armeabi-v7a` и `x86_64`. Точные версии исходников и артефактов приведены в релизах.
 
 ---
 
 ## What is TiredVPN?
 
-TiredVPN is a censorship-resistant VPN that uses multiple bypass strategies to
-establish and maintain connectivity in networks with active Deep Packet
-Inspection (DPI). Instead of relying on a single obfuscation technique, it
-implements an adaptive strategy engine that automatically selects the best
-transport based on current network conditions.
+TiredVPN is a client-server VPN written in Go. It supports a set of transports and a strategy manager that can probe configured options and attempt alternatives when a connection attempt fails. The result depends on the selected strategy, server configuration, and network; the project does not claim that a transport defeats filtering in every network.
 
-The system probes available strategies, ranks them by latency and reliability,
-and falls back to alternatives mid-session if the active strategy gets blocked.
-The same applies one level down: a client can be given a list of servers, and
-the address family and the server are both re-decided at runtime rather than
-settled once at startup. This targets filtering systems like TSPU (Russia),
-GFW (China), and similar DPI infrastructure.
-
-Key design goals:
-
-- **Resilience** - no single point of failure. A blocked strategy, a dead IPv6
-  path, or an unreachable server each get replaced without a restart.
-- **Stealth** - traffic patterns are morphed to resemble legitimate services
-  (video streaming, CDN traffic, HTTPS browsing).
-- **Performance** - multiplexed connections via smux, QUIC transport, and
-  adaptive RTT masking minimize overhead.
-
----
+The fork's Linux release and Android release have separate version numbers and release workflows. Linux core release `1.12.2-igor.4` provides amd64 and arm64 archives. Android release `1.12.1-igor.7` contains the fork's native client libraries and is also available from the custom F-Droid repository linked above.
 
 ## Features
 
-- **20+ DPI bypass strategies** with automatic selection and mid-session fallback
-- **QUIC and TLS transports** with Salamander padding and SNI fragmentation
-- **REALITY protocol** - impersonates legitimate websites with near-perfect TLS fingerprints
-- **HTTP/2 steganography** - hides tunnel data inside real HTTP/2 frames
-- **Traffic morphing** - statistically matches traffic patterns of popular services
-- **Geneva engine** - country-specific packet manipulation rules (Russia, China, Iran, Turkey)
-- **Multiplexed connections** via smux for efficient stream management
-- **TUN mode** for full system traffic tunneling
-- **SOCKS5 and HTTP proxy** modes
-- **Server pool** - a list of endpoints in TOML with `priority`, `latency`, or
-  `weighted` selection, and per-candidate parking with exponential cooldown
-- **Runtime transport fallback** - the address family is re-decided during the
-  session, not fixed at startup
-- **IPv6 inside the tunnel** (dual-stack), on by default, with outbound IPv6
-  blocked when the exit cannot carry it so it does not leak around the VPN
-- **Port hopping** with random, sequential, and Fibonacci strategies
-- **Encrypted Client Hello (ECH)** to hide SNI from DPI
-- **Post-quantum cryptography** (ML-KEM-768 + ML-DSA-65)
-- **Multi-hop routing** through chained servers
-- **TOML configuration** with CLI overrides (`-config`)
-- **Native packages** - `.deb`/`.rpm`, signed apt/yum repositories, one-line
-  installer, and a systemd unit that brings up forwarding and NAT itself
-- **Prometheus-compatible metrics** endpoint
-- **Android integration** via JNI (c-shared build mode)
-- **Docker and Helm** - multi-arch images and a chart on ghcr.io
-- **Client management** with Redis backend and REST API
-- **QR code generation** for mobile client provisioning
+- TCP/TLS, QUIC, REALITY, WebSocket, HTTP polling, and HTTP/2 transports, subject to configuration and server support.
+- Experimental REALITY Single Flight variant with per-SNI handshake limits.
+- Experimental strict GOST TLS 1.3 transport with explicit certificate pinning.
+- SOCKS5 and HTTP proxy modes, and TUN mode where supported by the host.
+- TOML configuration, endpoint pools, connection checks, and strategy selection.
+- Optional traffic-shaping and packet-manipulation strategies.
+- Linux amd64/arm64 release binaries; Android client libraries for arm64-v8a, armeabi-v7a, and x86_64.
 
----
-
-## How TiredVPN Compares
-
-| Feature | TiredVPN | Xray/VLESS | sing-box | Outline |
-|---------|----------|------------|----------|---------|
-| Bypass strategies | 20+ | 3–5 | 5–8 | 1–2 |
-| Adaptive fallback | ✅ Mid-session | ❌ | Partial | ❌ |
-| TSPU research | [Daily reports](https://github.com/tiredvpn/tiredvpn-measurements) | ❌ | ❌ | ❌ |
-| Post-quantum crypto | ✅ ML-KEM-768 | ❌ | ❌ | ❌ |
-| Geneva engine | ✅ | ❌ | ❌ | ❌ |
-| RTT masking | ✅ | ❌ | ❌ | ❌ |
-| ICMP fallback | ✅ | ❌ | ❌ | ❌ |
-| Traffic morphing | ✅ | ❌ | ❌ | ❌ |
-| Android app | ✅ Native | Third-party | Third-party | ✅ |
-| License | AGPL-3.0 | MPL-2.0 | GPL-3.0 | Apache-2.0 |
-
----
+The strategy list and defaults depend on flags and configuration. See [`tiredvpn client -help`](#building-from-source) and [DPI strategy documentation](docs/strategies.md) for details.
 
 ## Quick Start
 
-### Install
+### Download the fork's Linux binary
 
-#### One-liner (recommended)
-
-```bash
-curl -fsSL https://tiredvpn.github.io/tiredvpn/install.sh | sudo bash -s -- --port 443
-```
-
-Installs the server, generates a secret and TLS cert, starts the service, and
-prints the connection string plus a QR code for the mobile app. Pick a different
-port with `--port N` (default 443).
-
-#### Debian/Ubuntu (apt)
+The fork publishes Linux archives on its [GitHub Releases page](https://github.com/igor04091968/tiredvpn/releases). For the current release on amd64:
 
 ```bash
-curl -fsSL https://tiredvpn.github.io/tiredvpn/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/tiredvpn-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/tiredvpn-archive-keyring.gpg] https://tiredvpn.github.io/tiredvpn/apt stable main" | sudo tee /etc/apt/sources.list.d/tiredvpn.list
-sudo apt update && sudo apt install tiredvpn
-sudo tiredvpn-init        # generates secret/cert, prints keys, starts the service
+VERSION=v1.12.2-igor.4
+BASE="https://github.com/igor04091968/tiredvpn/releases/download/$VERSION"
+curl -fLO "$BASE/tiredvpn-linux-amd64.tar.gz"
+curl -fLO "$BASE/checksums.txt"
+grep 'tiredvpn-linux-amd64.tar.gz' checksums.txt | sha256sum -c -
+tar -xzf tiredvpn-linux-amd64.tar.gz
 ```
 
-#### Fedora/RHEL (dnf)
+For arm64, use `tiredvpn-linux-arm64.tar.gz` and its line from `checksums.txt`. These are standalone binaries, not distro packages or preconfigured services. Read [Server Reference](docs/server.md) and [Deployment Guide](docs/deployment.md) before deploying a server.
+
+### Build from source
 
 ```bash
-sudo tee /etc/yum.repos.d/tiredvpn.repo >/dev/null <<'EOF'
-[tiredvpn]
-name=TiredVPN
-baseurl=https://tiredvpn.github.io/tiredvpn/rpm/$basearch
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=https://tiredvpn.github.io/tiredvpn/gpg.key
-EOF
-sudo dnf install tiredvpn && sudo tiredvpn-init
+git clone https://github.com/igor04091968/tiredvpn.git
+cd tiredvpn
+go build -o tiredvpn ./cmd/tiredvpn/
 ```
 
-The apt and dnf packages install the service in a **disabled** state - they
-ship the binary but leave it stopped. Run `sudo tiredvpn-init` to finish setup:
-it generates the secret and cert, prints the access keys, and starts the
-service. The one-liner and `install.sh` already do this for you.
-
-By default the service comes up in **TUN mode** (`TIREDVPN_IP_POOL=10.8.0.0/24`)
-and sets `ip_forward` + NAT for the pool on each start, so the Android app (which
-always uses native TUN) works out of the box - no manual forwarding. For
-proxy-only, use `install.sh --proxy-only` or `tiredvpn-init --proxy-only`. Pick a
-different pool with `tiredvpn-init --ip-pool <CIDR>`. Details:
-[Server firewall and forwarding](#server-firewall-and-forwarding-required-for-tun-mode).
-
-#### Manual binary download
-
-For other distros or hosts without systemd, download the binary directly:
-
-```bash
-base=https://github.com/igor04091968/tiredvpn/releases/download
-curl -LO $base/tiredvpn-linux-amd64.tar.gz
-curl -LO $base/checksums.txt
-grep tiredvpn-linux-amd64.tar.gz checksums.txt | sha256sum -c -
-tar xzf tiredvpn-linux-amd64.tar.gz
-sudo mv tiredvpn-linux-amd64 /usr/local/bin/tiredvpn
-```
-
-Available platforms: `linux-amd64`, `linux-arm64`. This gives you the binary
-only - no systemd unit and no `tiredvpn-init`; use `install.sh --method binary`
-if you want those too. Other installation methods are described in the
-[Docker](#docker) and [Building from Source](#building-from-source) sections
-below.
-
-Kubernetes via Helm (server and/or client from a single release):
-
-```bash
-helm install my-tiredvpn oci://ghcr.io/tiredvpn/charts/tiredvpn --version 0.3.0 \
-  -f my-values.yaml
-```
-
-The chart is versioned separately from the binary: chart `0.3.2` ships
-`appVersion` 1.5.1. Each tagged release patch-bumps the chart and pushes it to
-the OCI registry.
-
-See [deploy/helm/tiredvpn/README.md](deploy/helm/tiredvpn/README.md) for values, examples, and TLS/auth/Redis/HPA options.
-
-### Generate a shared secret
-
-> The steps below (secret, certs, server flags) are for manual or advanced
-> setups only. The one-liner and the apt/dnf packages handle all of this for
-> you via `tiredvpn-init` - skip ahead to the app sections if you used one of
-> those.
-
-```bash
-openssl rand -hex 32
-```
-
-### Generate TLS certificates
-
-For testing, create a self-signed certificate:
-
-```bash
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
-  -days 365 -nodes -keyout server.key -out server.crt \
-  -subj "/CN=your-server.com"
-```
-
-For production, use [Let's Encrypt](https://letsencrypt.org/) with certbot:
-
-```bash
-sudo certbot certonly --standalone -d your-server.com
-# Certificates will be at:
-#   /etc/letsencrypt/live/your-server.com/fullchain.pem
-#   /etc/letsencrypt/live/your-server.com/privkey.pem
-```
-
-### Server
-
-```bash
-tiredvpn server \
-  -listen :443 \
-  -cert server.crt \
-  -key server.key \
-  -secret <your-secret>
-```
-
-The server listens on both TCP (TLS) and UDP (QUIC) by default. It serves a
-fake website to unauthenticated visitors, making it indistinguishable from a
-normal HTTPS server.
-
-### Server firewall and forwarding (required for TUN mode)
-
-**Automatic, for every way of running the server** - package, Docker, or the
-raw binary. Whenever `-ip-pool` is set (the packaged unit sets it by default:
-`TIREDVPN_IP_POOL=10.8.0.0/24` in `/etc/tiredvpn/env`), the server flips
-`net.ipv4.ip_forward=1` and installs `MASQUERADE` + `FORWARD` nftables rules
-for the pool on the WAN interface (autodetected via the route to `1.1.1.1`;
-override with the `TIREDVPN_WAN_IFACE` env var) directly over netlink on
-start - no `iptables`/`ip` binaries, no wrapper script, nothing to install.
-This is what lets the Android app - which always uses native TUN - connect to
-a fresh install with no manual steps. Failure is non-fatal: a host without
-`CAP_NET_ADMIN` logs a warning and comes up proxy-degraded rather than
-refusing to start.
-
-To opt out and run proxy-only: `install.sh --proxy-only` /
-`tiredvpn-init --proxy-only`, or set `TIREDVPN_IP_POOL=` (empty) in
-`/etc/tiredvpn/env` and restart. Custom CIDR: `tiredvpn-init --ip-pool <CIDR>`.
-
-**The automatic setup is IPv4-only.** For an IPv6 pool, or if you'd rather
-manage NAT yourself (a shared box with its own firewall policy, etc.), the
-automatic MASQUERADE/FORWARD install only ever touches the `-ip-pool` CIDR, so
-your own rules just coexist with it:
-
-```bash
-# Find the uplink with: ip route get 1.1.1.1   (the "dev <iface>" part)
-ip6tables -t nat -A POSTROUTING -s <ipv6-pool> -o <wan-iface> -j MASQUERADE
-ip6tables -A FORWARD -s <ipv6-pool> -j ACCEPT
-ip6tables -A FORWARD -d <ipv6-pool> -j ACCEPT
-sysctl -w net.ipv6.conf.all.forwarding=1
-```
-
-### Client (SOCKS5 proxy)
-
-```bash
-tiredvpn client \
-  -server your-server.com:443 \
-  -secret <your-secret> \
-  -listen 127.0.0.1:1080
-```
-
-This starts a local SOCKS5 proxy on port 1080. Point your browser or
-applications to `socks5://127.0.0.1:1080`.
-
-### Client (full VPN / TUN mode)
-
-```bash
-sudo tiredvpn client \
-  -server your-server.com:443 \
-  -secret <your-secret> \
-  -tun \
-  -tun-routes 0.0.0.0/0
-```
-
-This creates a TUN interface and routes all traffic through the VPN.
-
-Since 1.5.0 `-tun-ipv6` defaults to `dual`: IPv6 goes through the tunnel when
-the exit was started with `-ip-pool-v6`, and is rejected outright when it was
-not, so applications cannot reach the internet over a native IPv6 default route
-while the VPN is up. `-tun-ipv6 off` restores the pre-1.5.0 behaviour, which is
-one answer for a split tunnel - on its own, `dual` sends *all* IPv6 into the
-tunnel, including destinations you deliberately routed around it on IPv4. The
-other answer is `-tun-routes6`, which mirrors the v4 split on the v6 side
-instead of giving IPv6 up. The blocking half is Linux-only; on macOS it warns
-instead.
-
-If the host carries IPv6 of its own - a 6in4 tunnel, another VPN, a routed
-prefix - name it with `-tun-ipv6-allow he6,2001:db8::/32` (interface names,
-prefixes, or both) and the block leaves it alone.
-
-That covers the filter. The routing is a separate lever: `dual` also installs
-`::/1` + `8000::/1`, which beat the host's own default on prefix length and take
-IPv6 over entirely. On a node that must keep routing its own IPv6, pass
-`-tun-routes6 none` - the tunnel still gets a v6 address, but claims no
-destination, and you route into it from your own tables exactly as you already
-do for IPv4 with an absent `-tun-routes`. A prefix list works too
-(`-tun-routes6 2001:db8::/32`). Unset keeps the full tunnel, so a plain client
-is unaffected.
-
----
+Run `./tiredvpn server -help` or `./tiredvpn client -help` to see options. The configuration examples are [`configs/client.example.toml`](configs/client.example.toml) and [`configs/server.example.toml`](configs/server.example.toml).
 
 ## Configuration
 
@@ -479,167 +241,63 @@ the `add`, `list`, and `delete` subcommands (or set `TIREDVPN_API_TOKEN`).
 
 ---
 
-## Docker
+## Docker and Helm
 
-Pre-built images are available on Docker Hub. Platforms: `linux/amd64`, `linux/arm64`.
-
-| Tag | Description |
-|-----|-------------|
-| `latest` | Latest stable release |
-| `1.5.1` | Pinned version (one tag per release) |
-| `edge` | Latest `main` branch build |
-
-### Run the server
-
-```bash
-docker run -d \
-  --name tiredvpn-server \
-  -p 443:443/tcp \
-  -p 443:443/udp \
-  -v /path/to/certs:/certs:ro \
-  tiredvpn/tiredvpn:latest \
-  server -listen :443 \
-  -cert /certs/server.crt \
-  -key /certs/server.key \
-  -secret <your-secret>
-```
-
-### Docker Compose
-
-```bash
-curl -O https://raw.githubusercontent.com/tiredvpn/tiredvpn/main/docker-compose.yml
-TIREDVPN_SECRET=<your-secret> docker compose up -d
-```
-
-Or with a custom `docker-compose.yml`:
-
-```yaml
-version: "3.8"
-
-services:
-  tiredvpn-server:
-    image: tiredvpn/tiredvpn:latest
-    ports:
-      - "443:443/tcp"
-      - "443:443/udp"
-    volumes:
-      - ./certs:/certs:ro
-    command:
-      - "server"
-      - "-listen"
-      - ":443"
-      - "-cert"
-      - "/certs/server.crt"
-      - "-key"
-      - "/certs/server.key"
-      - "-secret"
-      - "${TIREDVPN_SECRET}"
-      - "-redis"
-      - "redis:6379"
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-
-volumes:
-  redis-data:
-```
-
-### Build locally
-
-```bash
-docker build -t tiredvpn .
-```
-
-### TUN mode in containers
-
-The default image handles server-side TUN (`-ip-pool`) out of the box - the
-binary sets up NAT itself via netlink/nftables on start, no special build
-needed. It just needs `/dev/net/tun`, `NET_ADMIN`, and a writable
-`net.ipv4.ip_forward` from the container runtime. The same applies to Helm via
-`server.tun.enabled`. Full docker run / compose / Helm recipes are in
-[docs/deployment.md → TUN mode in containers](docs/deployment.md#tun-mode-in-containers).
-
----
+The fork's release workflow does not publish images to the upstream `tiredvpn/tiredvpn` Docker Hub namespace. The upstream image and the upstream `docker-compose.yml` do not include these fork releases. The repository contains a Dockerfile and Helm chart for local builds/deployment; use the files from this fork's checkout and pin the image/chart you build yourself.
 
 ## Building from Source
 
 ### Requirements
 
-- Go 1.26 or later
-- Linux, macOS, or Windows (TUN mode requires Linux)
+- Go 1.27.1 (the version used by the current release workflow)
+- Linux, macOS, or Windows; TUN operation depends on OS support and privileges
 
-### Build
+### Build and test
 
 ```bash
-git clone https://github.com/tiredvpn/tiredvpn.git
+git clone https://github.com/igor04091968/tiredvpn.git
 cd tiredvpn
-make build          # -> ./tiredvpn
-```
-
-Or directly with Go (this skips the `-X main.version` ldflag, so
-`tiredvpn -version` reports `dev`):
-
-```bash
 go build -o tiredvpn ./cmd/tiredvpn/
+go vet ./...
+go test -race -timeout 5m -short ./internal/...
 ```
 
-### Other targets
-
-| Target | Output |
-|--------|--------|
-| `make build-linux` | `tiredvpn-linux-amd64` |
-| `make build-android` | `libtiredvpn.so` (arm64 c-shared, needs CGo) |
-| `make build-macos-cli` | `tiredvpn-macos-arm64`, `tiredvpn-macos-amd64` |
-| `make build-macos-lib` | `build/macos/libtiredvpn.a` (universal; macOS host only) |
-
-### Run tests
-
-```bash
-make test           # go test -race ./internal/...
-make lint           # golangci-lint run ./...
-```
-
----
+The release workflow also runs the GOST ClientHello regression tests and lint before publishing release binaries.
 
 ## Strategies
 
-TiredVPN includes an adaptive strategy engine that automatically selects the
-best transport. Each strategy targets a different aspect of DPI evasion.
-`tiredvpn client -list` prints the ones registered for your current flags, in
-priority order; `-strategy <id>` pins one.
+The manager can probe and rank registered strategies and try another option
+when a connection attempt fails. This does not guarantee a working route through
+a filtered network. `tiredvpn client -list` prints registered strategies;
+`-strategy <id>` selects one explicitly.
 
 | ID | Name | Description |
 |----|------|-------------|
-| `reality` | REALITY Protocol | Impersonates legitimate websites with authentic TLS fingerprints (first in the default order) |
-| [ГОСТ strategy ID](GOST-IMPLEMENTATION.md) | GOST TLS 1.3 | Opt-in GOST transport with a CryptoPro-inspired ClientHello, a separate TCP listener and SHA-256 certificate pinning. |
+| `reality` | REALITY Protocol | REALITY transport; behavior depends on configured server and TLS fingerprint. |
+| `reality_singleflight` | REALITY Single Flight | Experimental REALITY variant; at most two concurrent handshakes per donor SNI, with 250–500 ms spacing. |
+| [ГОСТ transport](GOST-IMPLEMENTATION.md) | ГОСТ TLS 1.3 | Experimental transport with a CryptoPro-derived ClientHello, a separate TCP port and one or two explicit SHA-256 certificate pins. |
 | `quic_salamander` | QUIC Salamander | QUIC over UDP with Salamander padding (opt-in: `-quic`) |
-| `quic` | QUIC Tunnel | QUIC transport with version spoofing, draft-29 to bypass TSPU (opt-in: `-quic`) |
-| `seqovl` | Seqovl (Sequence Overlap) | Prepends a secret-marked decoy TLS record before the REALITY ClientHello to desync stateful DPI reassembly (packet-level overlap on Linux via `-seqovl-packet`) |
-| `http2_stego` | HTTP/2 Steganography | Hides data inside HTTP/2 frames with NaiveProxy-style padding |
+| `quic` | QUIC Tunnel | QUIC transport (opt-in: `-quic`); compatibility and filtering results depend on the network |
+| `seqovl` | Seqovl (Sequence Overlap) | Experimental packet-level sequence overlap; packet-level mode requires Linux and `CAP_NET_ADMIN` |
+| `http2_stego` | HTTP/2 Steganography | HTTP/2 transport with padding; requires compatible server and client settings |
 | `websocket_padded` | WebSocket Salamander | WebSocket transport with Salamander obfuscation padding |
-| `http_polling` | HTTP Polling | Short-lived HTTP/1.1 requests (meek-style), evades long-connection detection |
+| `http_polling` | HTTP Polling | Short-lived HTTP/1.1 requests (meek-style); requires compatible server and client settings |
 | `morph_*` | Traffic Morphing | Reshapes traffic to match video streaming profiles (Yandex, VK, Baidu, Aparat) |
 | `confusion_*` | Protocol Confusion | Makes packets appear as DNS/HTTP/SSH/SMTP over TLS, plus a multi-layer variant |
-| `geneva_*` | Geneva Engine | Country-specific packet manipulation. Registered by default: `geneva_russia`, `geneva_china`, `geneva_iran`. Turkey rules exist in the engine but are not registered as a strategy. |
-| `antiprobe` | Anti-Probe | Server masquerades as normal website; reveals tunnel only to authenticated clients |
-| `state_exhaustion` | State Exhaustion | Floods DPI state table with decoys to trigger fail-open mode |
+| `geneva_*` | Geneva Engine | Packet-manipulation strategies registered for Russia, China, and Iran. |
+| `antiprobe` | Anti-Probe | Server-side probe resistance; behavior depends on server configuration |
+| `state_exhaustion` | State Exhaustion | Experimental strategy that generates decoy traffic. Its effect depends on the network. |
 | `mesh_relay` | Mesh Relay | Routes through relay nodes in regions with lighter filtering (opt-in, needs relay nodes configured) |
 | `icmp_tunnel` | ICMP Tunnel | Backup tunnel over ICMP Echo (opt-in: `-icmp-tunnel`, requires CAP_NET_RAW and a server started with `-enable-icmp`) |
 | `ssh_camouflage` | SSH Camouflage | Tunnel under SSH traffic (priority 28, requires server support) |
 | `imap_camouflage` | IMAP Camouflage | Tunnel under IMAP mail protocol (priority 29, requires server support) |
 
-The strategy engine supports:
+The strategy manager provides:
 
 - **Automatic probing** - tests all available strategies and ranks by latency
 - **Circuit breakers** - disables failing strategies after configurable threshold
-- **Mid-session fallback** - switches strategy without dropping the connection
-- **Periodic re-probing** - re-evaluates blocked strategies on a timer
+- **Connection-attempt fallback** - tries another configured option after a failed connection attempt; this does not promise a seamless mid-session protocol switch
+- **Re-probing** - re-evaluates strategies according to the configured connection flow
 - **Benchmarking** - `tiredvpn client -benchmark` to test all strategies
 
 ---
@@ -710,7 +368,7 @@ Before submitting a pull request:
 
 ## Community
 
-- [GitHub Discussions](https://github.com/tiredvpn/tiredvpn/discussions) — feature ideas, Q&A
+- [GitHub Discussions](https://github.com/igor04091968/tiredvpn/issues) — bugs and feature requests
 
 ---
 
