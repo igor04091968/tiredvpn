@@ -2,7 +2,7 @@
 
 The fork combines REALITY Single Flight with an opt-in GOST TLS 1.3 transport. The client connects to the configured TiredVPN server on a separate TCP listener, negotiates only RFC 9367 GOST suites, checks the server leaf certificate against one or two explicitly trusted SHA-256 DER pins and checks certificate validity before starting TypeMux/smux.
 
-The ClientHello follows locally captured CryptoPro CSP 5.0 R4 samples. Fresh random values and key shares are generated on each connection. Post-handshake authentication and PSK-only resumption are omitted, so this is an approximation of that profile. See [the profile implementation](docs/gost-cryptopro-clienthello.md).
+The ClientHello follows locally captured CryptoPro CSP 5.0 R4 samples. Fresh random values and key shares are generated on each connection. Post-handshake authentication and PSK-only resumption are omitted, so this is an approximation of that profile. See [the profile implementation](docs/gost-cryptopro-clienthello.md). The current implementation sets SNI internally; it has no runtime option to disable or override SNI. Connecting to an IP address therefore does not by itself mean the TLS handshake omitted SNI.
 
 ## Configuration
 
@@ -23,11 +23,13 @@ For a planned rotation:
 3. Replace the server certificate and key using the normal backup/restart procedure. Confirm that updated clients connect and complete pinned GOST TLS and authenticated tunnel checks.
 4. After the planned overlap, distribute only `NEW_PIN`. Verify that the old certificate is refused and remove the old key from active use.
 
-On Android the existing `gostPin` URL parameter and `gostTls13Pin` JSON field carry the same comma-separated string. Import/export preserve both pins. A profile with one pin remains compatible. APK `1.12.1-igor.4` and core `v1.12.2-igor.4` support two pins. Previous `.3` releases accept only one pin; upgrade clients before distributing dual-pin profiles. No certificate or production profile is changed automatically by this implementation.
+On Android the existing `gostPin` URL parameter and `gostTls13Pin` JSON field carry the same comma-separated string. Import/export preserve both pins. A profile with one pin remains compatible. Android APK `1.12.1-igor.4` was the first client release with two-pin support; core `v1.12.2-igor.4` contains the corresponding change. Earlier `.3` clients accept only one pin. For current release versions, see [the release status page](docs/RELEASES-RU.md), which is the maintained version index. No certificate or production profile is changed automatically by this implementation.
 
 ## Releases and deployment state
 
-[Core v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) and [Android v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4) contain the client pin-rotation change. The Android native core is pinned to fce4f440843f0f0fad3cacdb236f5729a489f5be.
+Version .4 below records when dual-pin support first shipped; it is historical release information. Current component versions are maintained in [docs/RELEASES-RU.md](docs/RELEASES-RU.md).
+
+[Core v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) and [Android v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4) were the first releases with client pin-rotation support. For the current Android release, use [the release status page](docs/RELEASES-RU.md). The Android native core is pinned to fce4f440843f0f0fad3cacdb236f5729a489f5be.
 
 Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. Publishing `.4` does not replace running binaries or certificates. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
 

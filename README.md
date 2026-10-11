@@ -14,7 +14,7 @@
 
 | Стратегия | Реализация |
 | --- | --- |
-| REALITY Single Flight | Экспериментальный вариант REALITY. Для каждого donor SNI ограничивает одновременные TLS-хэндшейки двумя и задаёт между их началами интервал 250 мс плюс случайные 0–250 мс. Это ограничение действует отдельно для каждого SNI. |
+| REALITY Single Flight | Экспериментальный вариант REALITY: одновременно выполняется не более одного TLS-хэндшейка по всем donor SNI; начала разделены интервалом 450–600 мс. |
 | ГОСТ TLS 1.3 | Экспериментальный отдельный TCP-транспорт на ГОСТ-криптографии. TLS ClientHello настроен по собственным захватам CryptoPro CSP 5.0 R4. Сертификат проверяется по сроку действия и одному или двум заранее указанным SHA-256 pin. |
 
 Single Flight использует существующий REALITY-протокол. ГОСТ и Single Flight требуют явного выбора; наличие стратегий не означает, что подключение пройдёт через конкретную сеть. Проверки совместимости и передачи данных не измеряют устойчивость к блокировкам.
@@ -57,7 +57,7 @@ The fork's Linux release and Android release have separate version numbers and r
 ## Features
 
 - TCP/TLS, QUIC, REALITY, WebSocket, HTTP polling, and HTTP/2 transports, subject to configuration and server support.
-- Experimental REALITY Single Flight variant with per-SNI handshake limits.
+- Experimental REALITY Single Flight variant with a global one-handshake limit and 450–600 ms spacing.
 - Experimental strict GOST TLS 1.3 transport with explicit certificate pinning.
 - SOCKS5 and HTTP proxy modes, and TUN mode where supported by the host.
 - TOML configuration, endpoint pools, connection checks, and strategy selection.
@@ -152,6 +152,8 @@ Run `tiredvpn server -help` or `tiredvpn client -help` for the full flag list.
 Generate the B1 key pair with `tiredvpn reality-keygen`.
 
 ### Client flags
+
+These are core CLI options. Android exposes only the options wired through its UI and service; for example, Android deliberately does not pass the core `-port-hop` option. ECH, post-quantum mode, and strategy fallback also depend on the Android build and profile configuration.
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -274,7 +276,7 @@ a filtered network. `tiredvpn client -list` prints registered strategies;
 | ID | Name | Description |
 |----|------|-------------|
 | `reality` | REALITY Protocol | REALITY transport; behavior depends on configured server and TLS fingerprint. |
-| `reality_singleflight` | REALITY Single Flight | Experimental REALITY variant; at most two concurrent handshakes per donor SNI, with 250–500 ms spacing. |
+| `reality_singleflight` | REALITY Single Flight | Experimental REALITY variant; one concurrent handshake globally, with 450–600 ms spacing. |
 | [ГОСТ transport](GOST-IMPLEMENTATION.md) | ГОСТ TLS 1.3 | Experimental transport with a CryptoPro-derived ClientHello, a separate TCP port and one or two explicit SHA-256 certificate pins. |
 | `quic_salamander` | QUIC Salamander | QUIC over UDP with Salamander padding (opt-in: `-quic`) |
 | `quic` | QUIC Tunnel | QUIC transport (opt-in: `-quic`); compatibility and filtering results depend on the network |
