@@ -103,11 +103,10 @@ func initAdmissionControl(cfg *Config) {
 	log.Info("Admission control: max %d concurrent incoming connections", limit)
 }
 
-// onHandlerDone, when non-nil, is invoked after a spawned handler goroutine
-// fully exits and releases its admission slot. Production leaves it nil; tests
-// set it to observe goroutine completion deterministically (no shared-var
-// polling), which keeps `go test -race` clean.
-var onHandlerDone func()
+// Admission hooks are test-only instrumentation for timestamping slot lifecycle.
+// Production leaves them nil.
+var onHandlerAdmitted func(uint64, time.Time)
+var onHandlerDone func(uint64, time.Time)
 
 // acceptConnection applies admission control: it tries to reserve a slot and,
 // on success, spawns handleConnection in a goroutine that releases the slot on
@@ -132,20 +131,26 @@ func acceptConnectionHandler(conn net.Conn, srvCtx *serverContext, connID uint64
 	}
 	select {
 	case sem <- struct{}{}:
+		admittedAt := time.Now()
+		if onHandlerAdmitted != nil {
+			onHandlerAdmitted(connID, admittedAt)
+		}
 		go func() {
 			defer func() {
 				<-sem
 				if onHandlerDone != nil {
-					onHandlerDone()
+					onHandlerDone(connID, time.Now())
 				}
 			}()
 			handler(conn, srvCtx, connID)
 		}()
 		return true
 	default:
-		log.Warn("Admission control: dropping connection %d from %s (limit %d reached)",
-			connID, conn.RemoteAddr(), cap(sem))
-		conn.Close()
+		if srvCtx != nil && srvCtx.metrics != nil {
+			srvCtx.metrics.IncAdmissionRejected()
+		}
+		admissionRejectLogs.reject(connID, conn.RemoteAddr(), cap(sem))
+		_ = conn.Close()
 		return false
 	}
 }

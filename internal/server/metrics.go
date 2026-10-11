@@ -18,6 +18,7 @@ type Metrics struct {
 	totalBytesDown    int64
 	authFailures      int64
 	connectionErrors  int64
+	admissionRejected int64
 
 	// Timestamps
 	startTime time.Time
@@ -95,6 +96,11 @@ func (m *Metrics) IncConnectionErrors() {
 	atomic.AddInt64(&m.connectionErrors, 1)
 }
 
+// IncAdmissionRejected counts inbound TCP connections dropped at the admission limit.
+func (m *Metrics) IncAdmissionRejected() {
+	atomic.AddInt64(&m.admissionRejected, 1)
+}
+
 // Handler returns HTTP handler for /metrics endpoint
 func (m *Metrics) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +163,11 @@ func (m *Metrics) Handler() http.HandlerFunc {
 		fmt.Fprintf(w, "# HELP tiredvpn_connection_errors_total Total connection errors\n")
 		fmt.Fprintf(w, "# TYPE tiredvpn_connection_errors_total counter\n")
 		fmt.Fprintf(w, "tiredvpn_connection_errors_total %d\n", atomic.LoadInt64(&m.connectionErrors))
+		fmt.Fprintf(w, "\n")
+
+		fmt.Fprintf(w, "# HELP tiredvpn_admission_rejected_total Inbound connections dropped because the admission limit was reached\n")
+		fmt.Fprintf(w, "# TYPE tiredvpn_admission_rejected_total counter\n")
+		fmt.Fprintf(w, "tiredvpn_admission_rejected_total %d\n", atomic.LoadInt64(&m.admissionRejected))
 		fmt.Fprintf(w, "\n")
 
 		// Per-client metrics (if registry available)

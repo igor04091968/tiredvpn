@@ -11,9 +11,11 @@ import (
 func resetAdmission(t *testing.T) {
 	t.Helper()
 	prevSem := admissionSem
+	prevAdmitted := onHandlerAdmitted
 	prevHook := onHandlerDone
 	t.Cleanup(func() {
 		admissionSem = prevSem
+		onHandlerAdmitted = prevAdmitted
 		onHandlerDone = prevHook
 	})
 }
@@ -101,7 +103,7 @@ func TestAcceptConnectionAdmitsAndReleases(t *testing.T) {
 	// Signal handler completion deterministically instead of polling the shared
 	// admissionSem variable (which would race with this test's cleanup).
 	done := make(chan struct{})
-	onHandlerDone = func() { close(done) }
+	onHandlerDone = func(uint64, time.Time) { close(done) }
 
 	// Drive a connection through handleConnection. The peer is closed
 	// immediately so handleConnection's read fails fast and the handler exits,

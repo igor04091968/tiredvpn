@@ -96,6 +96,7 @@ Served on the server's `-api-addr` at `/metrics`.
 | `tiredvpn_bytes_received_total` | counter | — | Bytes received (upload direction) |
 | `tiredvpn_auth_failures_total` | counter | — | Authentication failures |
 | `tiredvpn_connection_errors_total` | counter | — | Connection errors |
+| `tiredvpn_admission_rejected_total` | counter | — | Incoming TCP connections dropped because the concurrent-connection cap was full |
 
 ### Per-client
 

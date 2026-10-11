@@ -481,6 +481,13 @@ reconnect storms. Three ceilings bound it:
 | `-node-max-bytes` | `0` (off) | cap on bytes carried per window on this node |
 | `-node-window` | `1h` | the sliding window `-node-max-bytes` is measured over |
 
+When the concurrent-connection cap is full, excess TCP connections are closed
+immediately. The first rejection is logged at once; continued rejections are
+summarised every 10 seconds. In Redis-backed mode,
+`tiredvpn_admission_rejected_total` on `/metrics` counts every rejected
+connection. There is no application-level ingress rate limit; the cap bounds
+in-flight handlers, not the rate of new TCP accepts.
+
 `-node-max-clients` counts client identities. Transports that authenticate
 against a single shared secret carry no client id and are not counted, so the
 real number of users on the node can exceed the cap. The node ceilings surface

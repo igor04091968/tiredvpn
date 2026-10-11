@@ -52,6 +52,7 @@ func TestMetricsServerCounters(t *testing.T) {
 	m.IncAuthFailures()
 	m.IncAuthFailures()
 	m.IncConnectionErrors()
+	m.IncAdmissionRejected()
 
 	if got := atomic.LoadInt64(&m.totalConnections); got != 3 {
 		t.Errorf("totalConnections = %d, want 3", got)
@@ -68,6 +69,7 @@ func TestMetricsServerCounters(t *testing.T) {
 		"tiredvpn_bytes_sent_total 10000",    // down
 		"tiredvpn_auth_failures_total 2",
 		"tiredvpn_connection_errors_total 1",
+		"tiredvpn_admission_rejected_total 1",
 		"tiredvpn_clients_total 0", // nil registry must not omit the series
 		"tiredvpn_info{version=",
 		"tiredvpn_uptime_seconds ",
