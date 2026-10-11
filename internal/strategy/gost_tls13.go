@@ -3,6 +3,7 @@ package strategy
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -174,13 +175,13 @@ func (s *GOSTTLS13Strategy) verifyPeerCertificate(rawCerts [][]byte, _ [][]*gost
 		return fmt.Errorf("gost_tls13: server sent no certificate")
 	}
 	got := sha256.Sum256(rawCerts[0])
-	matched := false
+	matched := 0
 	for _, pin := range s.pins {
-		if got == pin {
-			matched = true
-		}
+		// Pins are fixed-size digests. Accumulate every comparison so a
+		// two-pin rotation checks both candidates without short-circuiting.
+		matched |= subtle.ConstantTimeCompare(got[:], pin[:])
 	}
-	if !matched {
+	if matched != 1 {
 		return fmt.Errorf("gost_tls13: server certificate pin mismatch")
 	}
 	leaf, err := gostx509.ParseCertificate(rawCerts[0])
