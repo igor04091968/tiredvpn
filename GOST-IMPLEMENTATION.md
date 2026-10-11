@@ -31,11 +31,19 @@ Version .4 below records when dual-pin support first shipped; it is historical r
 
 [Core v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) and [Android v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4) were the first releases with client pin-rotation support. For the current Android release, use [the release status page](docs/RELEASES-RU.md). The Android native core is pinned to fce4f440843f0f0fad3cacdb236f5729a489f5be.
 
-Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. Publishing `.4` does not replace running binaries or certificates. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
+Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. See the current deployment record below for the 1.12.2-igor.5 rollout. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
 
 ## Admission capacity
 
-The GOST listener shares the 4096-connection admission semaphore and has a separate `-gost-max-handshakes` limit (code default 512). Waiting connections hold a shared TCP admission slot, queue FIFO, and share the 30-second deadline; expiration removes the waiter and closes the connection. The crypto slot is released immediately when TLS `Handshake()` succeeds or fails, before mux/session handling. In multi-client mode, Prometheus exports active-handshake and queued-handshake gauges. The opt-in [stalled-handshake test](docs/GOST-ADMISSION-STRESS.md) measures timeout cleanup; the [GOST crypto-load test](docs/GOST-CRYPTO-LOAD.md) exercises real GOST TLS ClientHellos and reports server CPU, RSS, goroutines and handshake latency, with a comparison matrix for 128/256/512/1024 and the shared TCP cap. Two uncapped loopback runs with the default 4096 TCP limit admitted 4096 simultaneous GOST handshakes, with p99 latency from 9.35 to 11.90 seconds and about 98–100 MiB extra server RSS. The code default of 512 is experimental and has not been validated on production nodes; these laptop measurements do not establish it as appropriate for one- or two-vCPU VPSs. Run the comparison on target hardware before installation.
+The GOST listener shares the 4096-connection admission semaphore and has a separate `-gost-max-handshakes` limit (code default 128). Waiting connections hold a shared TCP admission slot, queue FIFO, and share the 30-second deadline; expiration removes the waiter and closes the connection. The crypto slot is released immediately when TLS `Handshake()` succeeds or fails, before mux/session handling. In multi-client mode, Prometheus exports active-handshake and queued-handshake gauges. The opt-in [stalled-handshake test](docs/GOST-ADMISSION-STRESS.md) measures timeout cleanup; the [GOST crypto-load test](docs/GOST-CRYPTO-LOAD.md) exercises real GOST TLS ClientHellos and reports server CPU, RSS, goroutines and handshake latency, with a comparison matrix for 128/256/512/1024 and the shared TCP cap. Two uncapped loopback runs with the default 4096 TCP limit admitted 4096 simultaneous GOST handshakes, with p99 latency from 9.35 to 11.90 seconds and about 98–100 MiB extra server RSS. The default was lowered from 512 to 128 before production rollout because both VPS targets have one vCPU and limited available memory; 128 remains configurable and should be reassessed from target measurements.
+
+The default was lowered from 512 to 128 before production rollout because both
+VPS targets have one vCPU and limited available memory. A bounded loopback run
+on each target completed 128 simultaneous GOST handshakes; server-process RSS
+peaks were 30.9 MiB on gw2 and 29.2 MiB on gw. This was one same-host sample,
+with the client subprocess sharing the VPS CPU. It does not establish sustained
+capacity or Android network recovery; see the detailed
+[target measurements](docs/GOST-CRYPTO-LOAD.md#one-vcpu-target-vps-smoke--2026-10-11).
 
 ## Verification and limits
 

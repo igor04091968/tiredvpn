@@ -27,7 +27,7 @@ Single Flight использует существующий REALITY-проток
 
 ## Текущие релизы
 
-- Ядро Linux: [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4), архивы amd64/arm64 и контрольные суммы.
+- Ядро Linux: [1.12.2-igor.5](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.5), архивы amd64/arm64 и контрольные суммы.
 - Android: [1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7), versionCode 34.
 - [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
@@ -73,7 +73,7 @@ The strategy list and defaults depend on flags and configuration. See [`tiredvpn
 The fork publishes Linux archives on its [GitHub Releases page](https://github.com/igor04091968/tiredvpn/releases). For the current release on amd64:
 
 ```bash
-VERSION=v1.12.2-igor.4
+VERSION=v1.12.2-igor.5
 BASE="https://github.com/igor04091968/tiredvpn/releases/download/$VERSION"
 curl -fLO "$BASE/tiredvpn-linux-amd64.tar.gz"
 curl -fLO "$BASE/checksums.txt"

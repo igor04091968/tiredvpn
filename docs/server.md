@@ -87,7 +87,7 @@ exit. `-upstream-secret` is mandatory when `-upstream` is set.
 | `-gost-listen` | | Separate TCP address for the experimental GOST TLS 1.3 listener. Requires `-gost-cert` and `-gost-key`. |
 | `-gost-cert` | | GOST TLS certificate in PEM; enables the GOST listener when used with `-gost-listen` and `-gost-key`. |
 | `-gost-key` | | PKCS #8 PEM private key matching `-gost-cert`. |
-| `-gost-max-handshakes` | `512` | Maximum concurrent GOST TLS handshakes. `0` selects 512. The slot is released as soon as the TLS handshake succeeds or fails, before mux/session handling. Connections waiting for a slot remain bounded by `-max-conns` and share the 30-second handshake deadline. |
+| `-gost-max-handshakes` | `128` | Maximum concurrent GOST TLS handshakes. `0` selects 128. The slot is released as soon as the TLS handshake succeeds or fails, before mux/session handling. Connections waiting for a slot remain bounded by `-max-conns` and share the 30-second handshake deadline. |
 
 The GOST-handshake cap is separate from the general TCP admission limit. It
 controls concurrent crypto work; it does not limit established GOST sessions.

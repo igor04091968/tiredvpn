@@ -85,7 +85,7 @@ func TestGOSTHandshakeLoad(t *testing.T) {
 	limits := []struct {
 		name  string
 		limit int
-	}{{"default512", defaultMaxConcurrentGOSTHandshakes}}
+	}{{"default128", defaultMaxConcurrentGOSTHandshakes}}
 	levels := []int{1, 8, 32, 128, 256, 512, 1024, 2048, defaultMaxConcurrentConns}
 	if os.Getenv("TIREDVPN_GOST_HANDSHAKE_LOAD_COMPARE") == "1" {
 		limits = []struct {

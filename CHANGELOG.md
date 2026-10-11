@@ -7,6 +7,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.5] - 2026-10-11
+
+### Added
+
+- Bound simultaneous GOST TLS handshakes with a FIFO crypto-slot queue while
+  retaining the shared 4096 TCP admission limit. Waiting handshakes keep the
+  existing 30-second deadline; crypto slots are released when TLS negotiation
+  finishes, before tunnel session setup.
+- Set the default crypto-slot cap to 128 for the initial one-vCPU VPS rollout;
+  operators can override it with `-gost-max-handshakes`.
+- Export active and waiting GOST-handshake gauges, aggregate repeated admission
+  rejection warnings, and add target-host load and timeout-cleanup test tools.
+
+### Tested
+
+- Loopback comparisons used real GOST TLS 1.3 ClientHellos and caps from 128 to
+  4096. Results varied across repeated runs; 128 is a conservative initial
+  setting, not a measured saturation point.
+- One loopback run on each one-vCPU VPS completed 1, 8, 32 and 128 parallel
+  handshakes with no failures or admission rejects. At 128, measured server RSS
+  peaks were 30.9 MiB on gw2 and 29.2 MiB on gw. See `docs/GOST-CRYPTO-LOAD.md`.
+
 ## [1.12.2-igor.4] - 2026-10-10
 
 ### Added

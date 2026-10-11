@@ -4,11 +4,18 @@
 
 | Компонент | Релиз | Состав |
 | --- | --- | --- |
-| Ядро Linux | [1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) | Архивы amd64 и arm64; `checksums.txt` приложен к релизу. |
-| Android-клиент | [1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7) | APK, versionCode 34; ABI `arm64-v8a`, `armeabi-v7a`, `x86_64`. |
+| Ядро Linux | [1.12.2-igor.5](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.5) | Архивы amd64 и arm64; `checksums.txt` приложен к релизу. |
+| Android-клиент | [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8) | APK, versionCode 35; ABI `arm64-v8a`, `armeabi-v7a`, `x86_64`. |
 | F-Droid | [Пользовательский репозиторий](https://igor04091968.github.io/tiredvpn-fdroid/) | Каталог проекта на GitHub Pages. Его нужно добавить вручную; приложение не опубликовано в официальном каталоге F-Droid.org. |
 
-Для Android доступен также [APK напрямую из GitHub Release](https://github.com/igor04091968/tiredvpn-android/releases/download/v1.12.1-igor.7/TiredVPN-1.12.1-igor.7.apk). SHA-256 этого файла: `1dc88429f6f5f6c35e30045df6fb310fd3a41f09f41ec7118de60d3425f4d63c`. Сборка подписана ключом проекта; SHA-256 сертификата подписи: `34193b315f837421f50d3cfbd3f528fe2f1f9de0313d880bf25bed61c7e41539`.
+APK и его SHA-256 будут добавлены после завершения подписанной сборки и проверки релиза.
+
+Перед установкой релиза тестовый бинарник прошёл ограниченную loopback-проверку
+на `gw` и `gw2`: уровни 1, 8, 32 и 128 GOST TLS 1.3 handshakes завершились без
+ошибок и отказов. Пики RSS серверного процесса при 128 соединениях составили
+29.2 MiB на `gw` и 30.9 MiB на `gw2`. Это один прогон на каждом однопроцессорном
+VPS; он не подтверждает устойчивую пропускную способность или восстановление
+Android-клиента при смене сети. Подробности — в [отчёте нагрузочных тестов](GOST-CRYPTO-LOAD.md#one-vcpu-target-vps-smoke--2026-10-11).
 
 Чтобы добавить F-Droid-каталог, используйте адрес с fingerprint:
 

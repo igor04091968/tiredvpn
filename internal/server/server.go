@@ -67,7 +67,7 @@ const (
 	// defaultMaxConcurrentGOSTHandshakes caps CPU-heavy GOST negotiations
 	// independently of the shared TCP connection limit. Loopback measurements
 	// showed rising tail latency above this range on a 4-logical-CPU host.
-	defaultMaxConcurrentGOSTHandshakes = 512
+	defaultMaxConcurrentGOSTHandshakes = 128
 	gostHandshakeTimeout               = 30 * time.Second
 
 	// defaultRelayIdleTimeout is the idle deadline for a relay->upstream TUN

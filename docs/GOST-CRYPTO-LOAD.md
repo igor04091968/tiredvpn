@@ -6,7 +6,7 @@ Opt-in Linux loopback test for the GOST TLS server path:
 TIREDVPN_RUN_GOST_HANDSHAKE_LOAD=1 go test ./internal/server -run '^TestGOSTHandshakeLoad$' -count=1 -v
 ```
 
-The default run steps through 1, 8, 32, 128 and 256 parallel connections. To test higher levels, set `TIREDVPN_GOST_HANDSHAKE_LOAD_MAX` to a value up to the server's 4096-connection admission limit. The test's GOST-handshake limiter uses the code default of 512:
+The default run steps through 1, 8, 32, 128 and 256 parallel connections. To test higher levels, set `TIREDVPN_GOST_HANDSHAKE_LOAD_MAX` to a value up to the server's 4096-connection admission limit. The current code default is 128; the historical 512-cap measurements below were made before that default was reduced:
 
 ```bash
 TIREDVPN_RUN_GOST_HANDSHAKE_LOAD=1 TIREDVPN_GOST_HANDSHAKE_LOAD_MAX=4096 go test ./internal/server -run '^TestGOSTHandshakeLoad$' -count=1 -v
@@ -45,7 +45,7 @@ Two full ladder runs showed the same broad tail-latency growth, but throughput w
 | 2,048 | 403/s / 4.05 s | 315/s / 5.29 s |
 | 4,096 | 281/s / 11.90 s | 379/s / 9.35 s |
 
-This justifies a separate, configurable GOST-handshake limit while retaining the shared 4096 TCP cap. The code default remains 512 for now, but the two comparisons do not establish it as optimal: several profiles changed materially between runs, and the profiles were tested in ascending order. Do not treat 512 as a recommendation for production or for one- or two-vCPU VPSs; test the matrix on the target hardware under expected arrival rates and normal logging configuration before installation.
+This supports a separate, configurable GOST-handshake limit while retaining the shared 4096 TCP cap. The two comparisons do not establish an optimal value: several profiles changed materially between runs, and the profiles were tested in ascending order. The current 128 default is a conservative starting point for the one-vCPU target VPSs, not a measured saturation point. Reassess it using target hardware, expected arrival rates and normal logging configuration.
 
 ## Run with the 512-handshake cap
 
@@ -61,6 +61,32 @@ After adding `-gost-max-handshakes` (default 512), another 4096-client loopback 
 The limit controls concurrent TLS negotiations, and the integration test verifies the slot is free while the completed TLS connection is still waiting for its mux discriminator. It does not cap established sessions: the separate shared TCP limit still admitted 4096 active connections, so total goroutines and memory continued to grow with those sessions. At 4096 connections the p99 completion time remained high because clients waited in the bounded handshake queue. Reassess both limits against real arrival patterns and target-server resources before deployment.
 
 These are one-machine loopback measurements, not production capacity guarantees. The test covers successful GOST handshakes, not malformed ClientHellos, packet loss, external network latency or a sustained arrival rate. RSS deltas can vary across phases because the Go allocator retains memory. The benchmark deliberately suppresses informational logs and uses an ephemeral certificate, so it should be repeated on each target server before choosing a limit.
+
+## One-vCPU target VPS smoke — 2026-10-11
+
+Before installing the release, the opt-in load test was run on each target VPS
+with its `-gost-max-handshakes` default of 128 and loopback GOST TLS 1.3
+clients. Each level ran once; all 169 handshakes on each node completed, no
+connection was rejected, and the observed crypto-slot peak reached 128. The
+client subprocess ran on the same one-vCPU VPS, so wall-clock throughput includes
+client-side CPU contention. CPU and RSS columns report the server test process.
+These figures check basic target-host behavior; they do not determine a safe
+sustained arrival rate or prove Android network recovery.
+
+| VPS | Parallel | Throughput | Handshake p50 / p99 | Server CPU user / sys | Server RSS peak |
+|---|---:|---:|---:|---:|---:|
+| gw2 | 1 | 1.4/s | 299 / 299 ms | 114 / 6 ms | 24.1 MiB |
+| gw2 | 8 | 14.3/s | 124 / 129 ms | 35 / 1 ms | 25.3 MiB |
+| gw2 | 32 | 51.2/s | 170 / 181 ms | 51 / 25 ms | 30.0 MiB |
+| gw2 | 128 | 123.2/s | 469 / 518 ms | 257 / 8 ms | 30.9 MiB |
+| gw | 1 | 0.7/s | 1,024 / 1,024 ms | 259 / 104 ms | 23.3 MiB |
+| gw | 8 | 5.8/s | 760 / 772 ms | 171 / 234 ms | 25.0 MiB |
+| gw | 32 | 33.1/s | 395 / 474 ms | 202 / 89 ms | 26.8 MiB |
+| gw | 128 | 70.1/s | 922 / 1,033 ms | 600 / 96 ms | 29.2 MiB |
+
+The test left both installed services and all client connections untouched.
+The slower 128-client result on `gw` reflects this single same-host run; repeat
+with remote clients and randomized caps before tuning above 128.
 
 The comparison test changes only the GOST handshake cap. It reports server CPU,
 RSS, goroutines, throughput, latency, active TCP connections, and peak GOST
