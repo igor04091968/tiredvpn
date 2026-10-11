@@ -52,7 +52,7 @@ Single Flight использует существующий REALITY-проток
 
 TiredVPN is a client-server VPN written in Go. It supports a set of transports and a strategy manager that can probe configured options and attempt alternatives when a connection attempt fails. The result depends on the selected strategy, server configuration, and network; the project does not claim that a transport defeats filtering in every network.
 
-The fork's Linux release and Android release have separate version numbers and release workflows. Linux core release `1.12.2-igor.4` provides amd64 and arm64 archives. Android release `1.12.1-igor.7` contains the fork's native client libraries and is also available from the custom F-Droid repository linked above.
+The fork's Linux release and Android release have separate version numbers and release workflows. Linux core release `1.12.2-igor.5` provides amd64 and arm64 archives. Android release `1.12.1-igor.8` (versionCode 35) contains the fork's native client libraries and is also available from the custom F-Droid repository linked above. Target VPS smoke-load measurements, rollout checks, and their limitations are recorded in [the release notes](docs/RELEASES-RU.md) and [GOST crypto-load report](docs/GOST-CRYPTO-LOAD.md).
 
 ## Features
 

@@ -5,10 +5,12 @@
 | Компонент | Релиз | Состав |
 | --- | --- | --- |
 | Ядро Linux | [1.12.2-igor.5](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.5) | Архивы amd64 и arm64; `checksums.txt` приложен к релизу. |
-| Android-клиент | [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8) | APK, versionCode 35; ABI `arm64-v8a`, `armeabi-v7a`, `x86_64`. |
+| Android-клиент | [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8) | [APK](https://github.com/igor04091968/tiredvpn-android/releases/download/v1.12.1-igor.8/tiredvpn-v1.12.1-igor.8.apk), versionCode 35; ABI `arm64-v8a`, `armeabi-v7a`, `x86_64`. |
 | F-Droid | [Пользовательский репозиторий](https://igor04091968.github.io/tiredvpn-fdroid/) | Каталог проекта на GitHub Pages. Его нужно добавить вручную; приложение не опубликовано в официальном каталоге F-Droid.org. |
 
-APK и его SHA-256 будут добавлены после завершения подписанной сборки и проверки релиза.
+SHA-256 APK: `36370e51165efed3d20437fd7cd2c85acfc807bc6ebf0814d2613e0803358117`.
+SHA-256 сертификата подписи приложения: `34193b315f837421f50d3cfbd3f528fe2f1f9de0313d880bf25bed61c7e41539`.
+Подписанная сборка и unit-тесты/lint прошли в [Android Release workflow](https://github.com/igor04091968/tiredvpn-android/actions/runs/38173227817).
 
 Перед установкой релиза тестовый бинарник прошёл ограниченную loopback-проверку
 на `gw` и `gw2`: уровни 1, 8, 32 и 128 GOST TLS 1.3 handshakes завершились без
