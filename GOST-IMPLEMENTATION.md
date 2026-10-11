@@ -33,6 +33,10 @@ Version .4 below records when dual-pin support first shipped; it is historical r
 
 Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. Publishing `.4` does not replace running binaries or certificates. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
 
+## Admission capacity
+
+The GOST listener shares the server admission semaphore. It is acquired before the handler starts TLS and released by a defer when the handler exits. The handler applies a 30-second deadline to the GOST handshake. An opt-in loopback test and its measured limits are documented in [GOST stalled-handshake admission test](docs/GOST-ADMISSION-STRESS.md). The connection cap is not an ingress rate limit or a per-connection memory/CPU budget.
+
 ## Verification and limits
 
 - GOST handshake and TypeMux/smux echo with one pin and either position of a two-pin list.
