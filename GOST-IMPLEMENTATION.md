@@ -31,7 +31,13 @@ Version .4 below records when dual-pin support first shipped; it is historical r
 
 [Core v1.12.2-igor.4](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.4) and [Android v1.12.1-igor.4](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.4) were the first releases with client pin-rotation support. For the current Android release, use [the release status page](docs/RELEASES-RU.md). The Android native core is pinned to fce4f440843f0f0fad3cacdb236f5729a489f5be.
 
-Production nodes were updated to server 1.12.2-igor.3 on 2026-10-09. Their ordinary TCP/UDP listener is 12443 and dedicated GOST TCP listener is 12444. See the current deployment record below for the 1.12.2-igor.5 rollout. Two-pin verification is a client feature; existing servers remain compatible. Backups and node-specific rollback instructions are kept in the operator's private technology document.
+The `gw` and `gw2` production nodes were updated to server 1.12.2-igor.5 on
+2026-10-11. Both run SHA-256
+`865580568340556a57595ca58a9255aec79e263c229d90d685cdb3b846c8f1b9`, with
+`-gost-max-handshakes` defaulting to 128. Their ordinary TCP/UDP listener is
+12443 and dedicated GOST TCP listener is 12444. Two-pin verification remains a
+client feature; existing servers remain compatible. Backups and node-specific
+rollback instructions are kept in the operator's private technology document.
 
 ## Admission capacity
 
@@ -53,5 +59,8 @@ capacity or Android network recovery; see the detailed
 - Go focused tests with the race detector and go vet passed. The Android configuration/import suite passed 56 tests.
 - ClientHello wire structure, fresh key shares, HelloRetryRequest and refusal of AES suites have regression coverage. Android socket protection runs before TCP connect.
 - Before/after the 2026-10-09 server rollout, both nodes passed new/old GOST, REALITY, Single Flight and QUIC Salamander tunnel checks.
+- Before and after the 2026-10-11 rollout, both nodes passed all five configured tunnel probes. Expected HTTP 401 responses from the local admin API confirmed traffic reached the API through the tunnel.
+- After restarting `gw2`, one established GOST TCP session was observed again within the first 8-second polling interval and remained present for 60 seconds. No client identity was logged, so this does not establish Android TUN recovery. No established client session was present on `gw` during the same post-restart observation.
+- After the probes, both nodes reported `tiredvpn_gost_handshakes_active 0` and `tiredvpn_gost_handshakes_waiting 0` through the authenticated local metrics endpoint.
 
 CryptoPro curl completed TLS 1.3 and HTTP checks against the server in the laboratory. Other peers had documented limitations, so these measurements do not establish universal interoperability. Android MTS operation and improved reliability under active filtering still require controlled field tests. Private packet captures, credentials and signing keys are excluded from the public repository.
