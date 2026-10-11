@@ -12,13 +12,15 @@ type Metrics struct {
 	registry *ClientRegistry
 
 	// Server-wide counters (atomic)
-	totalConnections  int64
-	activeConnections int64
-	totalBytesUp      int64
-	totalBytesDown    int64
-	authFailures      int64
-	connectionErrors  int64
-	admissionRejected int64
+	totalConnections     int64
+	activeConnections    int64
+	totalBytesUp         int64
+	totalBytesDown       int64
+	authFailures         int64
+	connectionErrors     int64
+	admissionRejected    int64
+	gostHandshakeActive  int64
+	gostHandshakeWaiting int64
 
 	// Timestamps
 	startTime time.Time
@@ -101,6 +103,14 @@ func (m *Metrics) IncAdmissionRejected() {
 	atomic.AddInt64(&m.admissionRejected, 1)
 }
 
+func (m *Metrics) AddGOSTHandshakeActive(delta int64) {
+	atomic.AddInt64(&m.gostHandshakeActive, delta)
+}
+
+func (m *Metrics) AddGOSTHandshakeWaiting(delta int64) {
+	atomic.AddInt64(&m.gostHandshakeWaiting, delta)
+}
+
 // Handler returns HTTP handler for /metrics endpoint
 func (m *Metrics) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +178,16 @@ func (m *Metrics) Handler() http.HandlerFunc {
 		fmt.Fprintf(w, "# HELP tiredvpn_admission_rejected_total Inbound connections dropped because the admission limit was reached\n")
 		fmt.Fprintf(w, "# TYPE tiredvpn_admission_rejected_total counter\n")
 		fmt.Fprintf(w, "tiredvpn_admission_rejected_total %d\n", atomic.LoadInt64(&m.admissionRejected))
+		fmt.Fprintf(w, "\n")
+
+		fmt.Fprintf(w, "# HELP tiredvpn_gost_handshakes_active Current GOST TLS handshakes holding a crypto slot\n")
+		fmt.Fprintf(w, "# TYPE tiredvpn_gost_handshakes_active gauge\n")
+		fmt.Fprintf(w, "tiredvpn_gost_handshakes_active %d\n", atomic.LoadInt64(&m.gostHandshakeActive))
+		fmt.Fprintf(w, "\n")
+
+		fmt.Fprintf(w, "# HELP tiredvpn_gost_handshakes_waiting Connections waiting for a GOST TLS crypto slot\n")
+		fmt.Fprintf(w, "# TYPE tiredvpn_gost_handshakes_waiting gauge\n")
+		fmt.Fprintf(w, "tiredvpn_gost_handshakes_waiting %d\n", atomic.LoadInt64(&m.gostHandshakeWaiting))
 		fmt.Fprintf(w, "\n")
 
 		// Per-client metrics (if registry available)

@@ -109,7 +109,7 @@ func initAdmissionControl(cfg *Config) {
 	log.Info("Admission control: max %d concurrent incoming connections", limit)
 }
 
-func newGOSTHandshakeSemaphore(cfg *Config) (chan struct{}, int, error) {
+func newGOSTHandshakeLimiterFromConfig(cfg *Config) (*gostHandshakeLimiter, int, error) {
 	if cfg == nil {
 		return nil, 0, fmt.Errorf("GOST handshake limit: nil server config")
 	}
@@ -120,24 +120,22 @@ func newGOSTHandshakeSemaphore(cfg *Config) (chan struct{}, int, error) {
 	if limit == 0 {
 		limit = defaultMaxConcurrentGOSTHandshakes
 	}
-	return make(chan struct{}, limit), limit, nil
+	return newGOSTHandshakeLimiter(limit), limit, nil
 }
 
 // performGOSTHandshake holds one GOST crypto slot only while Handshake runs.
 // The same 30-second budget bounds both slot waiting and TLS negotiation.
-func performGOSTHandshake(sem chan struct{}, handshake func() error) error {
-	if sem == nil {
+func performGOSTHandshake(limiter *gostHandshakeLimiter, timeout time.Duration, handshake func() error) error {
+	if limiter == nil {
 		return handshake()
 	}
-	timer := time.NewTimer(gostHandshakeTimeout)
-	defer timer.Stop()
-	select {
-	case sem <- struct{}{}:
-		defer func() { <-sem }()
-		return handshake()
-	case <-timer.C:
-		return fmt.Errorf("GOST handshake admission timed out after %s", gostHandshakeTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := limiter.acquire(ctx); err != nil {
+		return fmt.Errorf("GOST handshake admission timed out after %s: %w", timeout, err)
 	}
+	defer limiter.release()
+	return handshake()
 }
 
 // Admission hooks are test-only instrumentation for timestamping slot lifecycle.
@@ -517,18 +515,18 @@ type Config struct {
 
 // serverContext holds runtime context for multi-client mode
 type serverContext struct {
-	cfg              *Config
-	registry         *ClientRegistry
-	store            *RedisStore
-	upstreamDialer   *UpstreamDialer // for multi-hop mode
-	metrics          *Metrics        // Prometheus metrics
-	tlsConfig        *tls.Config     // TLS config for non-REALITY connections
-	gostTLSConfig    *gosttls.Config // Optional strict RFC 9367 TLS 1.3 profile
-	gostListener     net.Listener
-	gostHandshakeSem chan struct{}
-	ipPool           *IPPool          // IP pool for TUN mode
-	sharedTUN        *SharedTUN       // Shared TUN device for all clients
-	knockReplay      knockReplayGuard // anti-probe knock replay window (zero value usable)
+	cfg                  *Config
+	registry             *ClientRegistry
+	store                *RedisStore
+	upstreamDialer       *UpstreamDialer // for multi-hop mode
+	metrics              *Metrics        // Prometheus metrics
+	tlsConfig            *tls.Config     // TLS config for non-REALITY connections
+	gostTLSConfig        *gosttls.Config // Optional strict RFC 9367 TLS 1.3 profile
+	gostListener         net.Listener
+	gostHandshakeLimiter *gostHandshakeLimiter
+	ipPool               *IPPool          // IP pool for TUN mode
+	sharedTUN            *SharedTUN       // Shared TUN device for all clients
+	knockReplay          knockReplayGuard // anti-probe knock replay window (zero value usable)
 
 	// donorDialer opens the TCP connection to a REALITY donor ("host:443").
 	// Nil means net.DialTimeout, which is what production uses; tests set it
@@ -639,12 +637,12 @@ func Run(cfg *Config) error {
 		return fmt.Errorf("experimental GOST TLS requires all three options: -gost-listen, -gost-cert and -gost-key")
 	}
 	if cfg.GOSTCertFile != "" {
-		sem, limit, err := newGOSTHandshakeSemaphore(cfg)
+		limiter, limit, err := newGOSTHandshakeLimiterFromConfig(cfg)
 		if err != nil {
 			_ = listener.Close()
 			return err
 		}
-		srvCtx.gostHandshakeSem = sem
+		srvCtx.gostHandshakeLimiter = limiter
 		log.Info("GOST TLS handshake concurrency limit: %d", limit)
 		cert, err := gosttls.LoadX509KeyPair(cfg.GOSTCertFile, cfg.GOSTKeyFile)
 		if err != nil {
@@ -757,6 +755,9 @@ func initRedisMode(cfg *Config, srvCtx *serverContext) error {
 	}
 	api := NewAPIServer(registry, store, cfg.APIAddr, cfg.APIToken)
 	srvCtx.metrics = api.Metrics()
+	if srvCtx.gostHandshakeLimiter != nil {
+		srvCtx.gostHandshakeLimiter.setMetrics(srvCtx.metrics)
+	}
 	go func() {
 		if err := api.Start(ctx); err != nil {
 			log.Error("API server error: %v", err)
@@ -923,6 +924,10 @@ func serveGOSTTLSListener(listener net.Listener, srvCtx *serverContext) {
 }
 
 func handleGOSTTLSConnection(conn net.Conn, srvCtx *serverContext, connID uint64) {
+	handleGOSTTLSConnectionWithTimeout(conn, srvCtx, connID, gostHandshakeTimeout)
+}
+
+func handleGOSTTLSConnectionWithTimeout(conn net.Conn, srvCtx *serverContext, connID uint64, timeout time.Duration) {
 	defer conn.Close()
 	if srvCtx.gostTLSConfig == nil {
 		return
@@ -932,9 +937,9 @@ func handleGOSTTLSConnection(conn net.Conn, srvCtx *serverContext, connID uint64
 		srvCtx.metrics.IncConnections()
 		defer srvCtx.metrics.DecConnections()
 	}
-	_ = conn.SetDeadline(time.Now().Add(gostHandshakeTimeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	gconn := gosttls.Server(conn, srvCtx.gostTLSConfig)
-	if err := performGOSTHandshake(srvCtx.gostHandshakeSem, gconn.Handshake); err != nil {
+	if err := performGOSTHandshake(srvCtx.gostHandshakeLimiter, timeout, gconn.Handshake); err != nil {
 		logger.Debug("Handshake failed: %v", err)
 		return
 	}

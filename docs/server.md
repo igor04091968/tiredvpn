@@ -91,6 +91,10 @@ exit. `-upstream-secret` is mandatory when `-upstream` is set.
 
 The GOST-handshake cap is separate from the general TCP admission limit. It
 controls concurrent crypto work; it does not limit established GOST sessions.
+Queued GOST handshakes are served FIFO; a connection whose deadline expires is
+removed from the queue and releases its shared TCP admission slot. In
+multi-client mode, Prometheus exposes `tiredvpn_gost_handshakes_active` and
+`tiredvpn_gost_handshakes_waiting` gauges.
 See the [GOST handshake load measurements](GOST-CRYPTO-LOAD.md) before tuning
 the value for a specific server.
 

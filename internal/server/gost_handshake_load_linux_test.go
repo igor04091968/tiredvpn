@@ -66,10 +66,9 @@ func TestGOSTHandshakeLoad(t *testing.T) {
 	}
 	defer listener.Close()
 	ctx := &serverContext{
-		cfg:              &Config{},
-		gostTLSConfig:    gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}}),
-		gostHandshakeSem: make(chan struct{}, defaultMaxConcurrentGOSTHandshakes),
-		metrics:          NewMetrics(nil),
+		cfg:           &Config{},
+		gostTLSConfig: gosttls.GOSTConfig(&gosttls.Config{Certificates: []gosttls.Certificate{cert}}),
+		metrics:       NewMetrics(nil),
 	}
 	doneEvents := make(chan struct{}, defaultMaxConcurrentConns)
 	onHandlerDone = func(uint64, time.Time) { doneEvents <- struct{}{} }
@@ -83,23 +82,38 @@ func TestGOSTHandshakeLoad(t *testing.T) {
 		}
 		maxConcurrency = value
 	}
+	limits := []struct {
+		name  string
+		limit int
+	}{{"default512", defaultMaxConcurrentGOSTHandshakes}}
 	levels := []int{1, 8, 32, 128, 256, 512, 1024, 2048, defaultMaxConcurrentConns}
-	for _, concurrency := range levels {
-		if concurrency > maxConcurrency {
-			continue
+	if os.Getenv("TIREDVPN_GOST_HANDSHAKE_LOAD_COMPARE") == "1" {
+		limits = []struct {
+			name  string
+			limit int
+		}{{"128", 128}, {"256", 256}, {"512", 512}, {"1024", 1024}, {"uncapped", defaultMaxConcurrentConns}}
+		levels = []int{1024, 2048, defaultMaxConcurrentConns}
+	}
+	for _, profile := range limits {
+		ctx.gostHandshakeLimiter = newGOSTHandshakeLimiter(profile.limit)
+		ctx.gostHandshakeLimiter.setMetrics(ctx.metrics)
+		for _, concurrency := range levels {
+			if concurrency > maxConcurrency {
+				continue
+			}
+			t.Run(fmt.Sprintf("limit_%s/concurrency_%d", profile.name, concurrency), func(t *testing.T) {
+				result, report := runGOSTLoadPhase(t, listener.Addr().String(), concurrency, ctx.metrics, ctx.gostHandshakeLimiter)
+				if len(result.Failures) != 0 {
+					t.Fatalf("%d/%d GOST handshakes failed; first: %s", len(result.Failures), concurrency, result.Failures[0])
+				}
+				if len(result.HandshakeNanos) != concurrency {
+					t.Fatalf("completed %d handshakes, want %d", len(result.HandshakeNanos), concurrency)
+				}
+				t.Log(report)
+				waitHandlerCompletions(t, doneEvents, concurrency)
+				waitAdmissionEmpty(t)
+			})
 		}
-		t.Run(fmt.Sprintf("concurrency_%d", concurrency), func(t *testing.T) {
-			result, report := runGOSTLoadPhase(t, listener.Addr().String(), concurrency, ctx.metrics, ctx.gostHandshakeSem)
-			if len(result.Failures) != 0 {
-				t.Fatalf("%d/%d GOST handshakes failed; first: %s", len(result.Failures), concurrency, result.Failures[0])
-			}
-			if len(result.HandshakeNanos) != concurrency {
-				t.Fatalf("completed %d handshakes, want %d", len(result.HandshakeNanos), concurrency)
-			}
-			t.Log(report)
-			waitHandlerCompletions(t, doneEvents, concurrency)
-			waitAdmissionEmpty(t)
-		})
 	}
 }
 
@@ -189,7 +203,7 @@ func TestGOSTHandshakeLoadClient(t *testing.T) {
 	fmt.Println(string(encoded))
 }
 
-func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Metrics, handshakeSem chan struct{}) (gostLoadClientResult, string) {
+func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Metrics, limiter *gostHandshakeLimiter) (gostLoadClientResult, string) {
 	t.Helper()
 	runtime.GC()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -235,7 +249,8 @@ func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Me
 				if count := int(atomic.LoadInt64(&metrics.activeConnections)); count > peakActive {
 					peakActive = count
 				}
-				if count := len(handshakeSem); count > peakGOSTHandshakes {
+				count, _ := limiter.counts()
+				if count > peakGOSTHandshakes {
 					peakGOSTHandshakes = count
 				}
 			}
@@ -279,16 +294,20 @@ func runGOSTLoadPhase(t *testing.T, address string, concurrency int, metrics *Me
 		return time.Duration(result.HandshakeNanos[(len(result.HandshakeNanos)-1)*p/100])
 	}
 	formatBytes := func(n uint64) string { return fmt.Sprintf("%.1fMiB", float64(n)/(1024*1024)) }
-	if peakGOSTHandshakes > cap(handshakeSem) {
-		t.Fatalf("observed %d simultaneous GOST handshakes, configured limit is %d", peakGOSTHandshakes, cap(handshakeSem))
+	limitLabel := strconv.Itoa(limiter.limit)
+	if limiter.limit == defaultMaxConcurrentConns {
+		limitLabel += "-tcp-cap"
 	}
-	report := fmt.Sprintf("GOST load: concurrency=%d success=%d/%d rejected=%d elapsed=%s throughput=%.1f/s handshake_ms[min/p50/p90/p99/max]=%.2f/%.2f/%.2f/%.2f/%.2f server_cpu_user/sys=%d/%dms rss_baseline/peak/delta=%s/%s/%s server_goroutines_baseline/peak/delta=%d/%d/%d active_connections_peak=%d gost_handshakes_peak=%d/%d",
-		concurrency, len(result.HandshakeNanos), len(result.HandshakeNanos)+len(result.Failures), rejected, elapsed,
+	if peakGOSTHandshakes > limiter.limit {
+		t.Fatalf("observed %d simultaneous GOST handshakes, configured limit is %d", peakGOSTHandshakes, limiter.limit)
+	}
+	report := fmt.Sprintf("GOST load: limit=%s concurrency=%d success=%d/%d rejected=%d elapsed=%s throughput=%.1f/s handshake_ms[min/p50/p90/p99/max]=%.2f/%.2f/%.2f/%.2f/%.2f server_cpu_user/sys=%d/%dms rss_baseline/peak/delta=%s/%s/%s server_goroutines_baseline/peak/delta=%d/%d/%d active_connections_peak=%d gost_handshakes_peak=%d",
+		limitLabel, concurrency, len(result.HandshakeNanos), len(result.HandshakeNanos)+len(result.Failures), rejected, elapsed,
 		float64(concurrency)/elapsed.Seconds(), time.Duration(result.HandshakeNanos[0]).Seconds()*1000,
 		percentile(50).Seconds()*1000, percentile(90).Seconds()*1000, percentile(99).Seconds()*1000,
 		time.Duration(result.HandshakeNanos[len(result.HandshakeNanos)-1]).Seconds()*1000,
 		(userAfter-userBefore)/1000, (sysAfter-sysBefore)/1000, formatBytes(rssBefore), formatBytes(peakRSS), formatBytes(peakRSS-rssBefore),
-		goroutinesBefore, peakGoroutines, peakGoroutines-goroutinesBefore, peakActive, peakGOSTHandshakes, cap(handshakeSem))
+		goroutinesBefore, peakGoroutines, peakGoroutines-goroutinesBefore, peakActive, peakGOSTHandshakes)
 	if rejected != 0 {
 		t.Fatalf("admission rejected %d connections during GOST load phase", rejected)
 	}
