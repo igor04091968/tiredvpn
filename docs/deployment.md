@@ -477,7 +477,7 @@ reconnect storms. Three ceilings bound it:
 | Flag | Default | Effect |
 |---|---|---|
 | `-max-conns` | `0` (= 4096) | maximum in-flight incoming connections; excess is dropped |
-| `-gost-max-handshakes` | `0` (= 512) | maximum simultaneous GOST TLS negotiations; slots are released immediately after TLS succeeds or fails |
+| `-gost-max-handshakes` | `0` (= 128) | maximum simultaneous GOST TLS negotiations; slots are released immediately after TLS succeeds or fails. Established sessions do not hold handshake slots. |
 | `-node-max-clients` | `0` (off) | cap on distinct authenticated clients on this node |
 | `-node-max-bytes` | `0` (off) | cap on bytes carried per window on this node |
 | `-node-window` | `1h` | the sliding window `-node-max-bytes` is measured over |

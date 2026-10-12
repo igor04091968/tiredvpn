@@ -354,8 +354,10 @@ Collected here so they are not spread across the document:
    the non-REALITY transports have no record-now-decrypt-later hedge.
 4. Auth tokens on the non-REALITY transports are replayable for about twenty
    minutes and are not bound to the connection.
-5. No transport except B1 authenticates the server to the client in a way that
-   survives an active MITM; certificate verification is off everywhere.
+5. Only REALITY B1 and the experimental GOST TLS 1.3 transport authenticate the
+   server to the client: B1 uses its configured server key, while GOST requires
+   one or two explicit full-DER SHA-256 certificate pins. The other transports
+   do not provide equivalent server authentication.
 6. ECH covers two strategies, needs an out-of-band config list, and falls back
    to plain TLS silently.
 7. Salamander's secret check is 2 bytes wide.

@@ -28,7 +28,7 @@ Single Flight использует существующий REALITY-проток
 ## Текущие релизы
 
 - Ядро Linux: [1.12.2-igor.5](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.5), архивы amd64/arm64 и контрольные суммы.
-- Android: [1.12.1-igor.7](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.7), versionCode 34.
+- Android: [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8), versionCode 35; APK SHA-256 `36370e51165efed3d20437fd7cd2c85acfc807bc6ebf0814d2613e0803358117`.
 - [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
 [Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
@@ -64,7 +64,7 @@ The fork's Linux release and Android release have separate version numbers and r
 - Optional traffic-shaping and packet-manipulation strategies.
 - Linux amd64/arm64 release binaries; Android client libraries for arm64-v8a, armeabi-v7a, and x86_64.
 
-The strategy list and defaults depend on flags and configuration. See [`tiredvpn client -help`](#building-from-source) and [DPI strategy documentation](docs/strategies.md) for details.
+The strategy list and defaults depend on flags and configuration. The GOST TLS handshake cap defaults to 128; this limits concurrent TLS negotiations, not established VPN sessions. The 2026-10-11 load report includes two comparison matrices for caps 128, 256, 512, 1024 and 4096. See [`tiredvpn client -help`](#building-from-source), [DPI strategy documentation](docs/strategies.md), and the [GOST load report](docs/GOST-CRYPTO-LOAD.md).
 
 ## Quick Start
 
@@ -145,7 +145,11 @@ Run `tiredvpn server -help` or `tiredvpn client -help` for the full flag list.
 | `-enable-icmp` | `false` | Enable ICMP tunnel listener (requires CAP_NET_RAW) |
 | `-reality-b1` | `false` | Accept the REALITY B1 transport; needs `-reality-private-key` |
 | `-reality-private-key` | | Static X25519 key, base64 (`TIREDVPN_REALITY_PRIVATE_KEY`) |
-| `-max-conns` | `0` | Cap on in-flight incoming connections (0 = 4096) |
+| `-max-conns` | `0` | Cap on in-flight incoming connections (0 = 4096 for exit mode, 256 for relay mode) |
+| `-gost-listen` | disabled | Separate experimental GOST TLS 1.3 TCP listener; requires `-gost-cert` and `-gost-key` |
+| `-gost-cert` | | PEM GOST certificate; enables the experimental listener when paired with the other GOST server options |
+| `-gost-key` | | PKCS #8 PEM private key matching `-gost-cert` |
+| `-gost-max-handshakes` | `0` (128) | Concurrent GOST TLS negotiations; the slot is released after TLS succeeds or fails. Does not cap established sessions. |
 | `-pprof` | | Serve pprof on this address (e.g. `:6060`) |
 | `-debug` | `false` | Verbose logging |
 
@@ -153,7 +157,7 @@ Generate the B1 key pair with `tiredvpn reality-keygen`.
 
 ### Client flags
 
-These are core CLI options. Android exposes only the options wired through its UI and service; for example, Android deliberately does not pass the core `-port-hop` option. ECH, post-quantum mode, and strategy fallback also depend on the Android build and profile configuration.
+These are core CLI options; Android exposes only the options wired through its UI and service and does not pass `-port-hop`. Status caveats: `-pq` and `-pq-server-key` currently do not perform a post-quantum key exchange; ECH is limited to the stego and anti-probe strategies and needs an out-of-band `-ech-config`; the `-fallback` flag is parsed but does not control mid-session fallback. See [security limitations](docs/security.md#known-limitations), [ECH details](docs/security.md#encrypted-client-hello), and [strategy behavior](docs/strategies.md#mid-session-fallback).
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -175,13 +179,13 @@ These are core CLI options. Android exposes only the options wired through its U
 | `-strategy` | | Force a specific strategy (`-list` prints them) |
 | `-seqovl-packet` | `false` | Packet-level TCP sequence overlap for `seqovl` (Linux + CAP_NET_ADMIN) |
 | `-port-hop` | `false` | Enable port hopping |
-| `-ech` | `false` | Enable Encrypted Client Hello |
-| `-pq` | `false` | Enable post-quantum crypto |
+| `-ech` | `false` | ECH for stego/anti-probe only; requires an out-of-band `-ech-config` |
+| `-pq` | `false` | Reserved/inert: currently performs no post-quantum key exchange |
 | `-rtt-masking` | `false` | Hide proxy timing signature |
 | `-shaper` | | Traffic shaper preset for the morph strategies |
 | `-prefer-ipv6` | `true` | Prefer IPv6 transport |
 | `-fallback-v4` | `true` | Fall back to IPv4 if IPv6 fails |
-| `-fallback` | `true` | Mid-session strategy fallback |
+| `-fallback` | `true` | Parsed, but currently does not control mid-session strategy fallback |
 | `-benchmark` | `false` | Run strategy latency benchmark |
 | `-debug` | `false` | Verbose logging |
 
