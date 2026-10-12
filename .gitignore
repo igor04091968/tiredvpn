@@ -55,3 +55,10 @@ CLAUDE.local.md
 
 # Local Go build temporary directory
 /.tmp-go/
+
+# Private research and rights-registration materials
+/docs/evidence/
+/private/
+*.pcap
+*.pcapng
+*.keylog

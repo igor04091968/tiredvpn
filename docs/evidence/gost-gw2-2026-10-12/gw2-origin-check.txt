@@ -1,6 +1,0 @@
-394984.senko.network
-tiredvpn 1.12.2-igor.5 (built unknown)
-active
-http=200 peer=141.193.213.20 tls_verify=0 bytes=108069 duration=0.044140
-c1f670c4409d9c4d6c3967e8bbcd75fe89666b67b9ceddbf3e0e83a08ddde015  /tmp/tiredvpn-origin-check.A4DY2u
-INF 12:52:05.616 kTLS: kernel TLS support detected, will offload encryption

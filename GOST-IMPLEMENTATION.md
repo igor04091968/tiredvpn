@@ -2,7 +2,7 @@
 
 The fork combines REALITY Single Flight with an opt-in GOST TLS 1.3 transport. The client connects to the configured TiredVPN server on a separate TCP listener, negotiates only RFC 9367 GOST suites, checks the server leaf certificate against one or two explicitly trusted SHA-256 DER pins and checks certificate validity before starting TypeMux/smux.
 
-The ClientHello follows locally captured CryptoPro CSP 5.0 R4 samples. Fresh random values and key shares are generated on each connection. Post-handshake authentication and PSK-only resumption are omitted, so this is an approximation of that profile. See [the profile implementation](docs/gost-cryptopro-clienthello.md). The current implementation sets SNI internally; it has no runtime option to disable or override SNI. Connecting to an IP address therefore does not by itself mean the TLS handshake omitted SNI.
+The transport has been tested against a locally captured reference client in controlled conditions. Exact fingerprint equivalence and universal interoperability are not claimed. Detailed capture analysis is retained privately; the public validation summary is available in [the profile report](docs/gost-cryptopro-clienthello.md).
 
 ## Configuration
 

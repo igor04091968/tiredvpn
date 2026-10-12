@@ -15,13 +15,13 @@
 | Стратегия | Реализация |
 | --- | --- |
 | REALITY Single Flight | Экспериментальный вариант REALITY: одновременно выполняется не более одного TLS-хэндшейка по всем donor SNI; начала разделены интервалом 450–600 мс. |
-| ГОСТ TLS 1.3 | Экспериментальный отдельный TCP-транспорт на ГОСТ-криптографии. TLS ClientHello настроен по собственным захватам CryptoPro CSP 5.0 R4. Сертификат проверяется по сроку действия и одному или двум заранее указанным SHA-256 pin. |
+| ГОСТ TLS 1.3 | Экспериментальный отдельный TCP-транспорт на ГОСТ-криптографии. Профиль совместимости исследован в локальной лаборатории. Сертификат проверяется по сроку действия и одному или двум заранее указанным SHA-256 pin. |
 
 Single Flight использует существующий REALITY-протокол. ГОСТ и Single Flight требуют явного выбора; наличие стратегий не означает, что подключение пройдёт через конкретную сеть. Проверки совместимости и передачи данных не измеряют устойчивость к блокировкам.
 
 ## Профиль ГОСТ
 
-В локальной лаборатории сняты образцы TLS 1.3 с CryptoPro CSP 5.0 R4; по ним настроен профиль начального ClientHello. APK и сервер используют реализацию Go и библиотеку ГОСТ, а не CryptoPro. ClientHello содержит новые случайные значения и ключевые доли при каждом подключении. Профиль отличается от CryptoPro: post-handshake authentication и PSK-only resumption не реализованы.
+Работоспособность транспорта проверена в локальной лаборатории и полевых опытах. APK и сервер используют реализацию Go и библиотеку ГОСТ; исследовательские инструменты не входят в приложение. Полное совпадение с эталонным профилем и универсальная совместимость не заявляются. Подробные исследовательские материалы сохраняются приватно.
 
 Клиент принимает только ГОСТ-наборы TLS 1.3, проверяет DER-сертификат сервера по pin и проверяет срок действия сертификата. Для плановой замены сертификата можно временно задать два pin; автоматического доверия новому сертификату нет. [Порядок ротации](GOST-IMPLEMENTATION.md#certificate-rotation-with-two-trusted-pins). На Android сокеты защищаются через `VpnService.protect` до TCP connect.
 
@@ -31,7 +31,7 @@ Single Flight использует существующий REALITY-проток
 - Android: [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8), versionCode 35; APK SHA-256 `36370e51165efed3d20437fd7cd2c85acfc807bc6ebf0814d2613e0803358117`.
 - [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
-[Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md) · [Проверка GOST через gw2: парные HTTPS-скачивания, PCAP и отбор iPerf3-узлов](docs/GOST-IPERF-TEST-2026-10-12-RU.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
+[Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md) · [Результаты проверки ГОСТ с ноутбука](docs/GOST-IPERF-TEST-2026-10-12-RU.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
 
 ## Материалы и компоненты
 
@@ -281,7 +281,7 @@ a filtered network. `tiredvpn client -list` prints registered strategies;
 |----|------|-------------|
 | `reality` | REALITY Protocol | REALITY transport; behavior depends on configured server and TLS fingerprint. |
 | `reality_singleflight` | REALITY Single Flight | Experimental REALITY variant; one concurrent handshake globally, with 450–600 ms spacing. |
-| [ГОСТ transport](GOST-IMPLEMENTATION.md) | ГОСТ TLS 1.3 | Experimental transport with a CryptoPro-derived ClientHello, a separate TCP port and one or two explicit SHA-256 certificate pins. |
+| [ГОСТ transport](GOST-IMPLEMENTATION.md) | ГОСТ TLS 1.3 | Experimental transport with explicit certificate pinning and controlled compatibility checks. |
 | `quic_salamander` | QUIC Salamander | QUIC over UDP with Salamander padding (opt-in: `-quic`) |
 | `quic` | QUIC Tunnel | QUIC transport (opt-in: `-quic`); compatibility and filtering results depend on the network |
 | `seqovl` | Seqovl (Sequence Overlap) | Experimental packet-level sequence overlap; packet-level mode requires Linux and `CAP_NET_ADMIN` |
@@ -377,6 +377,10 @@ Before submitting a pull request:
 - [GitHub Discussions](https://github.com/igor04091968/tiredvpn/issues) — bugs and feature requests
 
 ---
+
+## Авторство собственного форка
+
+Инициатор концепции развития форка с транспортом ГОСТ — Igor Rachkov (`igor04091968`). [Уведомление об авторстве и границах прав](AUTHORSHIP.md). Права исходного TiredVPN и сторонних компонентов сохранены.
 
 ## License
 

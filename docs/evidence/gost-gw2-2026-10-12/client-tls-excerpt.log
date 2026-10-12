@@ -1,9 +1,0 @@
-INF 13:55:46.339 tiredvpn client 1.12.2-igor.5 starting...
-INF 13:55:46.339 Server: 144.31.85.160:12443, Cover: api.googleapis.com
-INF 13:55:46.339 Adaptive config: reprobe=5m0s, circuitThreshold=3, circuitReset=5m0s, fallback=false
-INF 13:56:18.438 [socks:2] CONNECT 151.101.0.81:443
-INF 13:56:18.906 GOST TLS: TCP connected to 144.31.85.160:12444; starting TLS handshake
-INF 13:56:19.187 GOST TLS: TLS 1.3 negotiated (suite=0xc103), certificate pin verified
-INF 13:56:53.141 [socks:3] CONNECT 141.193.213.20:443
-INF 13:56:53.290 GOST TLS: TCP connected to 144.31.85.160:12444; starting TLS handshake
-INF 13:56:53.461 GOST TLS: TLS 1.3 negotiated (suite=0xc103), certificate pin verified

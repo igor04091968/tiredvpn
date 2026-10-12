@@ -1,33 +1,11 @@
-# GOST client ClientHello profile
+# Проверка профиля совместимости ГОСТ
 
-The opt-in GOST TLS 1.3 transport uses a ClientHello based on a
-CryptoPro curl / CSP 5.0 R4 TLS 1.3 capture. The endpoint stays the configured
-TiredVPN server. The configured cover hostname is used as SNI.
+Профиль исследован по локально сохранённым образцам эталонного клиента. Проверка подтвердила работу собственного транспорта в контролируемых условиях. Полное совпадение профилей и универсальная совместимость не заявляются.
 
-The local `third_party/gogost` copy keeps the cryptographic implementation and
-changes the initial hello before transcript hashing. Client random, session ID,
-GOST and P-256 shares are generated anew. The reference's order of cipher suites,
-groups and signatures is retained. Two capabilities are intentionally omitted:
-post-handshake client authentication, which is not implemented, and PSK-only
-resumption. This profile therefore has a different JA3 from CryptoPro.
+Режим совместимости TLS подтверждён в образцах клиента и нашей реализации. Количество и время повторной выдачи сессионных билетов требуют отдельного анализа; они не принимаются за установленный параметр эталона.
 
-Only TLS 1.3 GOST cipher suites can be negotiated. A standard cipher advertised
-in the template causes an explicit failure at ServerHello if selected. The
-strategy still verifies one or two explicitly configured SHA-256 leaf certificate pins and validity
-period before mux dispatch. Probe and Connect protect Android sockets before SYN.
-The server's profile and all other strategies are unchanged.
+Эталонный клиент подключался к нашим серверам. Серверная часть этих образцов не является независимым эталоном корпоративного приложения.
 
-Validation:
+Сырой сетевой обмен, детальная структура профиля, идентификаторы и методика реализации сохранены в приватных исследовательских материалах владельца. Опубликованные исходники и прежняя история репозитория при этом остаются доступными на условиях действующих лицензий.
 
-```sh
-go -C third_party/gogost test ./gosttls -run 'TestCryptoPro|TestGOSTConfigUsesStrict' -count=1 -timeout=60s
-go test ./internal/strategy -run 'TestNewGOST|TestGOSTTLS|TestGOSTSocket' -count=1 -timeout=60s
-```
-
-Wire tests check record version, extension order, two key shares and fresh hello
-bytes. Handshake tests cover GOST, a GOST HelloRetryRequest, AES refusal, wrong pin
-and mux echo. Deployment requires a new Android native library and APK; existing
-servers accept the profile without an update. Compatibility checks on a working
-access network do not establish effectiveness against filtering on mobile data.
-
-Certificate rotation uses an explicit two-pin overlap. See [the rotation procedure](../GOST-IMPLEMENTATION.md#certificate-rotation-with-two-trusted-pins). No new trust is learned from the server.
+[Результаты полевых проверок](GOST-IPERF-TEST-2026-10-12-RU.md).
