@@ -1,0 +1,16 @@
+[
+  {
+    "ip": "173.239.112.53",
+    "started_utc": "2026-10-12T11:38:20.098344+00:00",
+    "exit_code": 1,
+    "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection refused",
+    "end": {}
+  },
+  {
+    "ip": "139.162.174.155",
+    "started_utc": "2026-10-12T11:38:30.957002+00:00",
+    "exit_code": 1,
+    "error": "unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection refused",
+    "end": {}
+  }
+]

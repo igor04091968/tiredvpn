@@ -1,0 +1,11 @@
+INF 14:38:19.909 tiredvpn client 1.12.2-igor.5 starting...
+INF 14:38:19.909 Server: gw2:12443, Cover: api.googleapis.com
+INF 14:38:19.909 Adaptive config: reprobe=5m0s, circuitThreshold=3, circuitReset=5m0s, fallback=false
+INF 14:38:20.107 [socks:2] CONNECT 173.239.112.53:5201
+INF 14:38:20.680 GOST TLS: TCP connected to gw2:12444; starting TLS handshake
+INF 14:38:20.887 GOST TLS: TLS 1.3 negotiated (suite=0xc103), certificate pin verified
+WRN 14:38:30.953 [socks:2] Failed to establish tunnel for 173.239.112.53:5201: pool: server rejected target connection
+INF 14:38:30.966 [socks:3] CONNECT 139.162.174.155:5201
+INF 14:38:31.029 GOST TLS: TCP connected to gw2:12444; starting TLS handshake
+INF 14:38:31.120 GOST TLS: TLS 1.3 negotiated (suite=0xc103), certificate pin verified
+WRN 14:38:41.216 [socks:3] Failed to establish tunnel for 139.162.174.155:5201: pool: server rejected target connection
