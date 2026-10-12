@@ -1,0 +1,30 @@
+{
+  "www.bbc.com-1-wifi": {
+    "captured": 14,
+    "received_by_filter": 14,
+    "dropped_by_kernel": 0,
+    "gw2_rx_tcp_payload_bytes_including_retransmissions": 0,
+    "new_direct_tcp_connections": 1
+  },
+  "www.bbc.com-1-gost": {
+    "captured": 338,
+    "received_by_filter": 338,
+    "dropped_by_kernel": 0,
+    "gw2_rx_tcp_payload_bytes_including_retransmissions": 395791,
+    "new_direct_tcp_connections": 0
+  },
+  "www.amnesty.org-1-wifi": {
+    "captured": 11,
+    "received_by_filter": 11,
+    "dropped_by_kernel": 0,
+    "gw2_rx_tcp_payload_bytes_including_retransmissions": 0,
+    "new_direct_tcp_connections": 1
+  },
+  "www.amnesty.org-1-gost": {
+    "captured": 124,
+    "received_by_filter": 124,
+    "dropped_by_kernel": 0,
+    "gw2_rx_tcp_payload_bytes_including_retransmissions": 120871,
+    "new_direct_tcp_connections": 0
+  }
+}

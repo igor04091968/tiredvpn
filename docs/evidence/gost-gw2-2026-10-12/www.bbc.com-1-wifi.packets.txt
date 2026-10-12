@@ -1,0 +1,14 @@
+1791802546.589697 IP 144.31.85.160.12444 > 192.168.0.7.49268: Flags [.], ack 1958415364, win 22, options [nop,nop,TS val 1882723209 ecr 3172305819], length 0
+1791802546.589698 IP 144.31.85.160.12444 > 192.168.0.7.49268: Flags [F.], seq 0, ack 1, win 22, options [nop,nop,TS val 1882723209 ecr 3172305819], length 0
+1791802546.589884 IP 192.168.0.7.49268 > 144.31.85.160.12444: Flags [.], ack 1, win 64, options [nop,nop,TS val 3172305909 ecr 1882723209], length 0
+1791802546.835388 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [S], seq 393349245, win 65535, options [mss 1460,sackOK,TS val 3881615825 ecr 0,nop,wscale 11], length 0
+1791802546.922406 IP 151.101.0.81.443 > 192.168.0.7.33920: Flags [S.], seq 1798738157, ack 393349246, win 65535, options [mss 1432,sackOK,TS val 1453853262 ecr 3881615825,nop,wscale 9], length 0
+1791802546.922549 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [.], ack 1, win 64, options [nop,nop,TS val 3881615912 ecr 1453853262], length 0
+1791802546.925345 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881615915 ecr 1453853262], length 517
+1791802547.292896 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881616283 ecr 1453853262], length 517
+1791802547.660891 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881616651 ecr 1453853262], length 517
+1791802548.428877 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881617419 ecr 1453853262], length 517
+1791802549.900895 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881618891 ecr 1453853262], length 517
+1791802552.844860 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [P.], seq 1:518, ack 1, win 64, options [nop,nop,TS val 3881621835 ecr 1453853262], length 517
+1791802558.796872 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [.], seq 1:513, ack 1, win 64, options [nop,nop,TS val 3881627787 ecr 1453853262], length 512
+1791802570.572897 IP 192.168.0.7.33920 > 151.101.0.81.443: Flags [.], seq 1:257, ack 1, win 64, options [nop,nop,TS val 3881639563 ecr 1453853262], length 256
