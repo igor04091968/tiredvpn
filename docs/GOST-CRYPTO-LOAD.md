@@ -22,6 +22,49 @@ TIREDVPN_RUN_GOST_HANDSHAKE_LOAD=1 TIREDVPN_GOST_HANDSHAKE_LOAD_COMPARE=1 TIREDV
 
 The server runs in the test process. A child process uses the project's GOST TLS implementation to make real TLS 1.3 handshakes, verifies the negotiated GOST cipher suite, sends the mux discriminator and holds sessions briefly so the server's peak resources can be sampled. Client cryptographic work is in the child process, so reported CPU time, RSS, goroutines and active connections describe the server process. The generated test certificate and key are ephemeral. Informational logs are suppressed during this opt-in test to keep per-handshake logging from dominating the measurements; production logging overhead is therefore excluded.
 
+The comparison test changes only the GOST handshake cap. It reports server CPU,
+RSS, goroutines, throughput, latency, active TCP connections, and peak GOST
+crypto concurrency. Repeat the complete matrix at least twice on target VPS
+hardware before deployment; laptop data cannot establish a safe default for
+one- or two-vCPU servers.
+
+## Concurrent GOST handshake-limit comparison — two runs (2026-10-11)
+
+Two comparison runs were completed on 2026-10-11 on the same Ryzen 3 3200U
+(4 logical CPUs), Linux 7.0.0-30-generic host. Each cap was tested against
+1024, 2048 and 4096 simultaneous clients, in ascending cap order. Cells show
+`throughput / p99`; CPU and RSS are from the 4096-client phase. Run A used an
+uncapped GOST limiter; with the shared TCP cap at 4096, this is the 4096-client
+case. Run B explicitly set the GOST cap to 4096.
+
+Run A:
+
+| GOST cap | 1024 clients | 2048 clients | 4096 clients | CPU user/system ms | RSS increase |
+|---:|---:|---:|---:|---:|---:|
+| 128 | 318/s / 2.16 s | 300/s / 5.15 s | 273/s / 10.29 s | 13,122 / 2,243 | 102.1 MiB |
+| 256 | 232/s / 3.05 s | 308/s / 4.87 s | 381/s / 8.26 s | 13,071 / 1,889 | 92.9 MiB |
+| 512 | 315/s / 2.49 s | 362/s / 4.00 s | 354/s / 8.63 s | 13,016 / 1,957 | 50.9 MiB |
+| 1024 | 264/s / 2.92 s | 347/s / 4.88 s | 351/s / 9.14 s | 13,552 / 1,943 | 139.6 MiB |
+| 4096 (uncapped) | 329/s / 2.39 s | 326/s / 5.10 s | 358/s / 9.34 s | 13,993 / 2,011 | 57.2 MiB |
+
+Run B:
+
+| GOST cap | 1024 clients | 2048 clients | 4096 clients | CPU user/system ms | RSS increase |
+|---:|---:|---:|---:|---:|---:|
+| 128 | 301/s / 2.31 s | 354/s / 4.27 s | 239/s / 13.88 s | 14,850 / 2,313 | 101.9 MiB |
+| 256 | 260/s / 3.09 s | 289/s / 5.12 s | 286/s / 10.97 s | 14,506 / 2,230 | 38.1 MiB |
+| 512 | 279/s / 2.88 s | 193/s / 8.17 s | 292/s / 10.80 s | 14,802 / 2,169 | 75.7 MiB |
+| 1024 | 230/s / 3.63 s | 264/s / 6.70 s | 269/s / 11.00 s | 14,953 / 2,107 | 89.9 MiB |
+| 4096 (TCP cap) | 181/s / 4.34 s | 208/s / 7.46 s | 266/s / 12.04 s | 14,620 / 2,126 | 97.8 MiB |
+
+Across both matrices, all 30 phases completed every handshake and rejected no connection. Throughput
+and tail latency varied substantially between runs; because caps were tested
+in ascending order, host heating or background load may also have affected
+later profiles. The data supports bounding crypto concurrency, but does not
+establish 512—or any other value—as optimal. Randomized profile order, cool-down
+between runs, normal logging, and target-VPS CPU/RSS measurements remain
+necessary before installation.
+
 ## Uncapped baseline
 
 Two loopback baseline runs on 2026-10-11, AMD Ryzen 3 3200U, 4 logical CPUs, Linux 7.0.0-30-generic. These runs predate the dedicated GOST-handshake semaphore and measure the previous behavior: only the shared 4096 TCP admission limit was active. Every attempted connection completed a GOST TLS 1.3 handshake and mux setup; no connection was rejected.
@@ -87,46 +130,3 @@ sustained arrival rate or prove Android network recovery.
 The test left both installed services and all client connections untouched.
 The slower 128-client result on `gw` reflects this single same-host run; repeat
 with remote clients and randomized caps before tuning above 128.
-
-The comparison test changes only the GOST handshake cap. It reports server CPU,
-RSS, goroutines, throughput, latency, active TCP connections, and peak GOST
-crypto concurrency. Repeat the complete matrix at least twice on target VPS
-hardware before deployment; laptop data cannot establish a safe default for
-one- or two-vCPU servers.
-
-### Two same-machine comparison runs
-
-Runs completed on 2026-10-11 on the same Ryzen 3 3200U (4 logical CPUs), Linux
-7.0.0-30-generic host. Each tested 1024, 2048 and 4096 simultaneous clients
-under each limit, in ascending limit order. Cells show `throughput / p99`; the
-last columns show server CPU user/system milliseconds and sampled RSS increase
-for the 4096-client phase. The final 4096 cap equals the shared TCP cap and
-therefore does not constrain this workload earlier than `-max-conns`.
-
-Run A:
-
-| GOST cap | 1024 clients | 2048 clients | 4096 clients | CPU user/system ms | RSS increase |
-|---:|---:|---:|---:|---:|---:|
-| 128 | 318/s / 2.16 s | 300/s / 5.15 s | 273/s / 10.29 s | 13,122 / 2,243 | 102.1 MiB |
-| 256 | 232/s / 3.05 s | 308/s / 4.87 s | 381/s / 8.26 s | 13,071 / 1,889 | 92.9 MiB |
-| 512 | 315/s / 2.49 s | 362/s / 4.00 s | 354/s / 8.63 s | 13,016 / 1,957 | 50.9 MiB |
-| 1024 | 264/s / 2.92 s | 347/s / 4.88 s | 351/s / 9.14 s | 13,552 / 1,943 | 139.6 MiB |
-| uncapped | 329/s / 2.39 s | 326/s / 5.10 s | 358/s / 9.34 s | 13,993 / 2,011 | 57.2 MiB |
-
-Run B:
-
-| GOST cap | 1024 clients | 2048 clients | 4096 clients | CPU user/system ms | RSS increase |
-|---:|---:|---:|---:|---:|---:|
-| 128 | 301/s / 2.31 s | 354/s / 4.27 s | 239/s / 13.88 s | 14,850 / 2,313 | 101.9 MiB |
-| 256 | 260/s / 3.09 s | 289/s / 5.12 s | 286/s / 10.97 s | 14,506 / 2,230 | 38.1 MiB |
-| 512 | 279/s / 2.88 s | 193/s / 8.17 s | 292/s / 10.80 s | 14,802 / 2,169 | 75.7 MiB |
-| 1024 | 230/s / 3.63 s | 264/s / 6.70 s | 269/s / 11.00 s | 14,953 / 2,107 | 89.9 MiB |
-| 4096 (TCP cap) | 181/s / 4.34 s | 208/s / 7.46 s | 266/s / 12.04 s | 14,620 / 2,126 | 97.8 MiB |
-
-All 30 phases completed every handshake and rejected no connection. Throughput
-and tail latency varied substantially between runs; because caps were tested
-in ascending order, host heating or background load may also have affected
-later profiles. The data supports bounding crypto concurrency, but does not
-establish 512—or any other value—as optimal. Randomized profile order, cool-down
-between runs, normal logging, and target-VPS CPU/RSS measurements remain
-necessary before installation.
