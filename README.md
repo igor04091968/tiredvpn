@@ -31,7 +31,7 @@ Single Flight использует существующий REALITY-проток
 - Android: [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8), versionCode 35; APK SHA-256 `36370e51165efed3d20437fd7cd2c85acfc807bc6ebf0814d2613e0803358117`.
 - [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
-[Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
+[Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md) · [Проверка GOST через публичные iPerf3-серверы с ноутбука](docs/GOST-IPERF-TEST-2026-10-12-RU.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
 
 ## Материалы и компоненты
 
