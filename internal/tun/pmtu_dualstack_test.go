@@ -27,7 +27,7 @@ func foldedSum(data []byte, initial uint32) uint16 {
 }
 
 func testTransportSum(pkt []byte, start int, proto byte) uint16 {
-	end := len(pkt)
+	var end int
 	var sum uint32
 	if pkt[0]>>4 == 6 {
 		end = 40 + int(binary.BigEndian.Uint16(pkt[4:6]))

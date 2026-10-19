@@ -7,7 +7,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.12.2-igor.7] - 2026-10-19
+## [1.12.2-igor.8] - 2026-10-19
 
 ### Fixed
 
