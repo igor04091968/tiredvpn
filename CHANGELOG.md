@@ -7,6 +7,27 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.7] - 2026-10-19
+
+### Fixed
+
+- Clamp TCP MSS for both IPv4 and IPv6 in the packet path and only lower
+  existing values in nftables. Respect configured/per-client MTU in all
+  server TUN transports instead of hardcoding 1280 on downstream packets.
+- Install and clean up the server-side IPv6 MSS clamp directly in the core.
+- Return IPv4 Fragmentation Needed and IPv6 Packet Too Big to the original
+  sender through the tunnel. Bound ICMPv6 quotes, validate checksums, apply
+  a per-connection error budget and preserve framing under concurrent writes.
+- Reject invalid Android JNI MTU arguments. Keep default MTU 1280.
+
+### Validation
+
+- Focused MTU/PMTU race tests, isolated Linux nftables install/readback,
+  and the server/CLI package suites passed. The complete TUN package passes
+  except two asynchronous goroutine-count tests; the swap flake also
+  reproduces before these changes. No measured phone throughput gain is claimed.
+- See `docs/mtu-ru.md` for configuration and PMTUD verification.
+
 ## [1.12.2-igor.5] - 2026-10-11
 
 ### Added
