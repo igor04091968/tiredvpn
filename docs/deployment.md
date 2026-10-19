@@ -535,6 +535,8 @@ the host's real address. **Upgrade exits and relays before clients**: an exit
 that predates dual-stack answers a `0x04` client without a flags byte, which
 costs a 300 ms grace period per connect and logs a warning.
 
+The Android fork keeps its tunnel IPv6 setting per server profile and defaults it to off. Enable “IPv6 в туннеле (двойной стек)” in the profile to make the app request the dual-stack addresses; choosing an IPv6 transport endpoint alone does not enable IPv6 inside the tunnel. See the [Android instructions](https://github.com/igor04091968/tiredvpn-android/blob/main/docs/ipv6-ru.md).
+
 Open the IPv6 listener in the firewall:
 
 ```bash

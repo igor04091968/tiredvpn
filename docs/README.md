@@ -12,6 +12,7 @@ TiredVPN. Everything else is reference material and can be read out of order.
 | [DPI Bypass Strategies](strategies.md) | Strategy list, adaptive engine, by-country guidance |
 | [Architecture](architecture.md) | Internals: connection flow, auth, multiplexing, TUN |
 | [Deployment](deployment.md) | Docker, systemd, Helm, TLS, firewall, multi-hop, scaling |
+| [Настройка IPv6](ipv6-setup-ru.md) | Dual-stack TUN от серверного пула до Android-клиента |
 | [Monitoring](monitoring.md) | Prometheus metrics, pprof, Grafana examples |
 | [Security](security.md) | Auth model, ECH, post-quantum, operational hardening |
 
