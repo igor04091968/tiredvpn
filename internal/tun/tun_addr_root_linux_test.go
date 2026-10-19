@@ -3,10 +3,13 @@
 package tun
 
 import (
+	"errors"
 	"net"
 	"slices"
+	"syscall"
 	"testing"
 
+	"github.com/google/nftables"
 	"github.com/vishvananda/netlink"
 )
 
@@ -75,5 +78,49 @@ func TestRootConfigureFallbackAssignsLocalIP(t *testing.T) {
 	got := v4AddrsOn(t, dev.Name())
 	if !slices.Contains(got, "10.99.0.7/24") || slices.Contains(got, "10.99.0.0/24") {
 		t.Fatalf("client TUN addresses = %v, want 10.99.0.7/24 from the fallback and no network address", got)
+	}
+}
+
+// TestRootConfigureSubnetInstallsAndRemovesIPv6MSSClamp verifies the server
+// dual-stack setup owns an ip6 clamp table and that Close removes it without
+// relying on the client-only v6Enabled state.
+func TestRootConfigureSubnetInstallsAndRemovesIPv6MSSClamp(t *testing.T) {
+	rootOnly(t)
+	dev := rootTUN(t, "fxsrv6mss0")
+	_, pool4, _ := net.ParseCIDR("10.99.1.0/24")
+	_, pool6, _ := net.ParseCIDR("fd99:1::/64")
+	server6 := &net.IPNet{IP: net.ParseIP("fd99:1::1"), Mask: pool6.Mask}
+	if err := dev.ConfigureSubnet(net.ParseIP("10.99.1.1").To4(), pool4, server6); err != nil {
+		if errors.Is(err, syscall.EOPNOTSUPP) {
+			t.Skipf("kernel/network namespace does not support IPv6 TUN addresses: %v", err)
+		}
+		t.Fatalf("ConfigureSubnet: %v", err)
+	}
+
+	tablePresent := func() bool {
+		t.Helper()
+		conn, err := nftables.New()
+		if err != nil {
+			t.Fatalf("nftables.New: %v", err)
+		}
+		tables, err := conn.ListTablesOfFamily(nftables.TableFamilyIPv6)
+		if err != nil {
+			t.Fatalf("ListTablesOfFamily: %v", err)
+		}
+		for _, table := range tables {
+			if table.Name == mssTableName(dev.Name()) {
+				return true
+			}
+		}
+		return false
+	}
+	if !tablePresent() {
+		t.Fatal("server dual-stack TUN did not install its IPv6 MSS table")
+	}
+	if err := dev.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if tablePresent() {
+		t.Fatal("IPv6 MSS table survived TUN Close")
 	}
 }

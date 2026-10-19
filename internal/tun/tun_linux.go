@@ -152,9 +152,13 @@ type TUNDevice struct {
 	// installed, and the ip6 MSS clamp table exists. Drives v6-aware teardown
 	// in Close/DisableIPv6 and route re-installs in reAddRoutes.
 	v6Enabled bool
-	localIP6  net.IP
-	remoteIP6 net.IP
-	routes6   []*net.IPNet
+	// v6MSSClampManaged records that this TUN configured an IPv6 MSS table.
+	// Server ConfigureSubnet does not set v6Enabled (that tracks client routes
+	// and addresses), so it needs a separate teardown marker.
+	v6MSSClampManaged bool
+	localIP6          net.IP
+	remoteIP6         net.IP
+	routes6           []*net.IPNet
 	// v6PeerForm records which address form actually landed on the link:
 	// true for the point-to-point clientIP6/128 with peer serverIP6/128,
 	// false for the /64 fallback used on kernels that reject a v6 peer.
@@ -452,7 +456,7 @@ func (t *TUNDevice) Close() error {
 		if err := removeMSSClamping(t.name); err != nil {
 			log.Warn("Failed to remove MSS clamping rules: %v", err)
 		}
-		if t.v6Enabled {
+		if t.v6Enabled || t.v6MSSClampManaged {
 			if err := removeMSSClampingV6(t.name); err != nil {
 				log.Warn("Failed to remove IPv6 MSS clamping rules: %v", err)
 			}
@@ -1335,6 +1339,16 @@ func (t *TUNDevice) ConfigureSubnet(localIP net.IP, network *net.IPNet, serverIP
 			return fmt.Errorf("failed to set IPv6 address: %w", err)
 		}
 		log.Info("TUN device %s dual-stack enabled: %s", t.name, serverIP6)
+		if mss := t.mtu - 60; mss > 0 {
+			// Mark before attempting nftables: the helper treats nftables
+			// failures as non-fatal, but Close must still clean up a partial table.
+			t.v6MSSClampManaged = true
+			if err := addMSSClampingV6(t.name, t.mtu); err != nil {
+				log.Warn("Failed to set IPv6 MSS clamping: %v", err)
+			} else {
+				log.Info("TCP MSS clamping (IPv6) set to %d on %s", mss, t.name)
+			}
+		}
 	}
 
 	mss := t.mtu - 40
@@ -1626,7 +1640,8 @@ func addMSSClamping(ifName string, mtu int) error {
 }
 
 // addMSSClampingV6 is the ip6-family counterpart of addMSSClamping, installed
-// only when dual-stack is negotiated (EnableDualStack). Same table name and
+// when either server subnet configuration or client negotiation enables dual-stack.
+// Same table name and
 // chain structure as the v4 clamp — nftables tables are namespaced per
 // family, so the two coexist and are torn down independently. The clamped
 // value is mtu-60: the v6 base header is 40 bytes (vs 20 for v4), keeping the
@@ -1710,8 +1725,8 @@ func removeMSSClamping(ifName string) error {
 }
 
 // removeMSSClampingV6 deletes this interface's ip6-family MSS clamping table.
-// Called only when the table was installed (v6Enabled), so the v4-only path
-// never issues a delete for a table that cannot exist.
+// Callers track whether server configuration or client negotiation created it,
+// so the v4-only path never issues a delete for a table that cannot exist.
 // Non-fatal: logs a warning and returns nil if the operation fails.
 func removeMSSClampingV6(ifName string) error {
 	conn, err := nftables.New()
