@@ -27,11 +27,11 @@ Single Flight использует существующий REALITY-проток
 
 ## Текущие релизы
 
-- Ядро Linux: [1.12.2-igor.5](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.5), архивы amd64/arm64 и контрольные суммы.
-- Android: [1.12.1-igor.8](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.8), versionCode 35; APK SHA-256 `36370e51165efed3d20437fd7cd2c85acfc807bc6ebf0814d2613e0803358117`.
+- Ядро Linux: [1.12.2-igor.8](https://github.com/igor04091968/tiredvpn/releases/tag/v1.12.2-igor.8), архивы amd64/arm64 и контрольные суммы.
+- Android: [1.12.1-igor.10](https://github.com/igor04091968/tiredvpn-android/releases/tag/v1.12.1-igor.10), versionCode 37; APK SHA-256 `6392a87dc99abfe677bac3892cc24c46db7246e2693ff2ad18e97aae1f4169b7`.
 - [F-Droid-репозиторий проекта](https://igor04091968.github.io/tiredvpn-fdroid/). Это отдельный репозиторий, его нужно добавить в F-Droid вручную; приложение не включено в каталог F-Droid.org.
 
-[Настройка IPv6 (сервер и Android)](docs/ipv6-setup-ru.md) · [Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md) · [Результаты проверки ГОСТ с ноутбука](docs/GOST-IPERF-TEST-2026-10-12-RU.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
+[Настройка IPv6 (сервер и Android)](docs/ipv6-setup-ru.md) · [MTU и MSS IPv4/IPv6](docs/mtu-ru.md) · [Состав релизов и проверки](docs/RELEASES-RU.md) · [Профиль ClientHello](docs/gost-cryptopro-clienthello.md) · [Предыдущая проверка на Tele2](docs/field-tests-tele2-2026-10-08.md) · [Результаты проверки ГОСТ с ноутбука](docs/GOST-IPERF-TEST-2026-10-12-RU.md). Результаты полевых проверок относятся к указанным там версиям и условиям сети.
 
 ## Материалы и компоненты
 
@@ -52,7 +52,7 @@ Single Flight использует существующий REALITY-проток
 
 TiredVPN is a client-server VPN written in Go. It supports a set of transports and a strategy manager that can probe configured options and attempt alternatives when a connection attempt fails. The result depends on the selected strategy, server configuration, and network; the project does not claim that a transport defeats filtering in every network.
 
-The fork's Linux release and Android release have separate version numbers and release workflows. Linux core release `1.12.2-igor.5` provides amd64 and arm64 archives. Android release `1.12.1-igor.8` (versionCode 35) contains the fork's native client libraries and is also available from the custom F-Droid repository linked above. Target VPS smoke-load measurements, rollout checks, and their limitations are recorded in [the release notes](docs/RELEASES-RU.md) and [GOST crypto-load report](docs/GOST-CRYPTO-LOAD.md).
+The fork's Linux release and Android release have separate version numbers and release workflows. Linux core release `1.12.2-igor.8` provides amd64 and arm64 archives. Android release `1.12.1-igor.10` (versionCode 37) contains the fork's native client libraries and is also available from the custom F-Droid repository linked above. Target VPS smoke-load measurements, rollout checks, and their limitations are recorded in [the release notes](docs/RELEASES-RU.md) and [GOST crypto-load report](docs/GOST-CRYPTO-LOAD.md).
 
 ## Features
 
@@ -73,7 +73,7 @@ The strategy list and defaults depend on flags and configuration. The GOST TLS h
 The fork publishes Linux archives on its [GitHub Releases page](https://github.com/igor04091968/tiredvpn/releases). For the current release on amd64:
 
 ```bash
-VERSION=v1.12.2-igor.5
+VERSION=v1.12.2-igor.8
 BASE="https://github.com/igor04091968/tiredvpn/releases/download/$VERSION"
 curl -fLO "$BASE/tiredvpn-linux-amd64.tar.gz"
 curl -fLO "$BASE/checksums.txt"
