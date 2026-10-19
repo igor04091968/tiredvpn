@@ -759,7 +759,7 @@ func (v *VPNClient) seamlessPortHop(newPort int) {
 	// Atomic swap: new connection ready, swap with old (break)
 	v.mu.Lock()
 	oldConn := v.conn
-	v.conn = tunnelConn
+	v.conn = &frameWriteConn{Conn: tunnelConn}
 	v.strategy = newStrategy
 	v.serverAddr = newTarget
 	v.lastActive = time.Now()
@@ -890,7 +890,7 @@ func (v *VPNClient) connect(parent context.Context) error {
 		conn.Close()
 		return context.Canceled
 	}
-	v.conn = conn
+	v.conn = &frameWriteConn{Conn: conn}
 	v.strategy = strat
 	if hasCaps {
 		v.serverCaps = caps
@@ -1602,18 +1602,6 @@ func (v *VPNClient) readFromServer() {
 			continue
 		}
 
-		// Oversized real packet: drop and inject ICMP Fragmentation Needed so the
-		// inner peer shrinks instead of black-holing.
-		if pktLen > uint32(v.tun.MTU()) {
-			log.Debug("Packet too large (%d > MTU %d), dropping and sending ICMP", pktLen, v.tun.MTU())
-			icmpPkt := BuildICMPFragNeeded(v.tun.remoteIP, buf, uint16(v.tun.MTU()))
-			if icmpPkt != nil {
-				if _, err := v.tun.Write(icmpPkt); err != nil {
-					log.Debug("Failed to inject ICMP frag needed: %v", err)
-				}
-			}
-			continue
-		}
 		if log.DebugEnabled() {
 			if len(buf) >= 8 {
 				log.Debug("Read packet data: %d bytes, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x",
@@ -1633,6 +1621,17 @@ func (v *VPNClient) readFromServer() {
 				log.Debug("DETECTED: Packet has inner length prefix (%d+4=%d), skipping 4 bytes", innerLen, len(buf))
 				actualBuf = buf[4:]
 			}
+		}
+
+		// Strip transport framing before checking the actual IP size. Feedback
+		// goes to the remote sender over the tunnel, not into the local TUN.
+		if len(actualBuf) > v.tun.MTU() {
+			conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+			if err := sendPacketTooBig(conn, actualBuf, v.tun.MTU()); err != nil {
+				log.Debug("Failed to return packet-too-big: %v", err)
+				v.handleDisconnect()
+			}
+			continue
 		}
 
 		// Clamp TCP MSS on incoming SYN/SYN-ACK before writing to TUN
@@ -2095,7 +2094,7 @@ type tunRelay struct {
 func newTUNRelay(tunDev *TUNDevice, serverConn net.Conn, localIP, remoteIP net.IP, externalStopCh chan struct{}, callbacks *RelayCallbacks) *tunRelay {
 	stopCh, safeClose := makeStopChannel(externalStopCh)
 	r := &tunRelay{
-		serverConn: serverConn,
+		serverConn: &frameWriteConn{Conn: serverConn},
 		localIP:    localIP,
 		remoteIP:   remoteIP,
 		callbacks:  callbacks,
@@ -2296,7 +2295,7 @@ func runTUNToServer(stopCh, readerStop chan struct{}, safeClose func(), tunDev *
 			log.Debug("TUN->Server: read %d bytes from TUN (pkt #%d)", n, pktCount)
 		}
 
-		ClampTCPMSS(buf[4:4+n], tunDev.mtu)
+		ClampTCPMSS(buf[4:4+n], tunDev.MTU())
 		binary.BigEndian.PutUint32(buf[:4], uint32(n))
 
 		serverConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -2345,7 +2344,7 @@ func runServerToTUN(stopCh chan struct{}, safeClose func(), tun *atomic.Pointer[
 		}
 
 		tunDev := tun.Load()
-		if reason := handleOversizedPacket(tunDev, serverConn, remoteIP, pktLen); reason != "" {
+		if reason := handleOversizedPacket(tunDev, serverConn, pktLen); reason != "" {
 			if reason == "dropped" {
 				continue
 			}
@@ -2358,7 +2357,7 @@ func runServerToTUN(stopCh chan struct{}, safeClose func(), tun *atomic.Pointer[
 			return fmt.Sprintf("server_read_data: %v", err)
 		}
 
-		ClampTCPMSS(buf, tunDev.mtu)
+		ClampTCPMSS(buf, tunDev.MTU())
 
 		pktCount++
 		if pktCount <= 5 || pktCount%100 == 0 {
@@ -2371,23 +2370,23 @@ func runServerToTUN(stopCh chan struct{}, safeClose func(), tun *atomic.Pointer[
 	}
 }
 
-// handleOversizedPacket discards an oversized packet and injects an ICMP Frag Needed.
-// Returns "dropped" if the packet was discarded, an error reason string on read failure, or "" if not oversized.
-func handleOversizedPacket(tunDev *TUNDevice, serverConn net.Conn, remoteIP net.IP, pktLen uint32) string {
-	if pktLen <= uint32(tunDev.mtu) {
+// handleOversizedPacket consumes a frame before returning feedback to its
+// sender. Reject protocol-invalid lengths before allocation and keep the stream
+// aligned when a valid but oversized frame is dropped.
+func handleOversizedPacket(tunDev *TUNDevice, serverConn net.Conn, pktLen uint32) string {
+	if pktLen > maxFrameLen {
+		return "server_frame_too_large"
+	}
+	if pktLen <= uint32(tunDev.MTU()) {
 		return ""
 	}
-	log.Debug("Packet too large (%d > MTU %d), dropping and sending ICMP", pktLen, tunDev.mtu)
 	oversized := make([]byte, pktLen)
 	if _, err := io.ReadFull(serverConn, oversized); err != nil {
-		log.Debug("Failed to read oversized packet: %v", err)
 		return fmt.Sprintf("server_read_oversized: %v", err)
 	}
-	icmpPkt := BuildICMPFragNeeded(remoteIP, oversized, uint16(tunDev.mtu))
-	if icmpPkt != nil {
-		if _, err := tunDev.Write(icmpPkt); err != nil {
-			log.Debug("Failed to inject ICMP frag needed: %v", err)
-		}
+	serverConn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	if err := sendPacketTooBig(serverConn, oversized, tunDev.MTU()); err != nil {
+		return fmt.Sprintf("server_write_pmtu: %v", err)
 	}
 	return "dropped"
 }

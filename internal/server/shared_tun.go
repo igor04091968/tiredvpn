@@ -87,6 +87,7 @@ type ClientWriter struct {
 	conn       net.Conn
 	clientIP   net.IP
 	clientID   string
+	mtu        int   // effective immutable tunnel limit for this writer
 	lastActive int64 // Unix timestamp, updated atomically
 	created    int64 // Unix timestamp of creation
 	done       chan struct{}
@@ -244,16 +245,24 @@ func (st *SharedTUN) RegisterClient(clientIP net.IP, clientID string, conn net.C
 // is the whole point: a packet dispatched in the window between registration and
 // the handshake response is refused by the closed gate instead of being framed
 // into the stream ahead of the response.
-func (st *SharedTUN) RegisterClientGated(clientIP net.IP, clientID string, conn net.Conn, frameFunc func([]byte) []byte, gate *tunFrameGate) *ClientWriter {
-	return st.registerClient(clientIP, clientID, conn, frameFunc, gate)
+func (st *SharedTUN) RegisterClientGated(clientIP net.IP, clientID string, conn net.Conn, frameFunc func([]byte) []byte, gate *tunFrameGate, clientMTU ...int) *ClientWriter {
+	return st.registerClient(clientIP, clientID, conn, frameFunc, gate, clientMTU...)
 }
 
-func (st *SharedTUN) registerClient(clientIP net.IP, clientID string, conn net.Conn, frameFunc func([]byte) []byte, gate *tunFrameGate) *ClientWriter {
+func (st *SharedTUN) registerClient(clientIP net.IP, clientID string, conn net.Conn, frameFunc func([]byte) []byte, gate *tunFrameGate, clientMTU ...int) *ClientWriter {
 	ipStr := clientIP.String()
 	now := time.Now().Unix()
 
+	mtu := st.mtu
+	if mtu <= 0 {
+		mtu = tun.DefaultMTU
+	}
+	if len(clientMTU) > 0 && clientMTU[0] > 0 && clientMTU[0] < mtu {
+		mtu = clientMTU[0]
+	}
 	writer := &ClientWriter{
 		conn:        conn,
+		mtu:         mtu,
 		clientIP:    clientIP,
 		clientID:    clientID,
 		lastActive:  now,
@@ -490,7 +499,11 @@ func (w *ClientWriter) SendPacket(pkt []byte) error {
 	}
 
 	// Clamp TCP MSS on SYN/SYN-ACK going to client
-	tun.ClampTCPMSS(pkt, tun.DefaultMTU)
+	mtu := w.mtu
+	if mtu <= 0 {
+		mtu = tun.DefaultMTU
+	}
+	tun.ClampTCPMSS(pkt, mtu)
 
 	// Frame the packet according to protocol
 	var framedPkt []byte

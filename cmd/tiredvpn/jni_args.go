@@ -112,10 +112,15 @@ func parseClientArgs(args []string) (_ *client.Config, err error) {
 				i++
 			}
 		case "-tun-mtu":
-			if i+1 < len(args) {
-				fmt.Sscanf(args[i+1], "%d", &cfg.TunMTU)
-				i++
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("-tun-mtu requires a value")
 			}
+			value, parseErr := strconv.Atoi(args[i+1])
+			if parseErr != nil {
+				return nil, fmt.Errorf("invalid -tun-mtu value")
+			}
+			cfg.TunMTU = value
+			i++
 		case "-control-socket":
 			if i+1 < len(args) {
 				cfg.ControlSocket = args[i+1]
@@ -288,6 +293,10 @@ func parseClientArgs(args []string) (_ *client.Config, err error) {
 		if err := applyShaperFlag(cfg, shaperName, shaperSeed); err != nil {
 			return nil, err
 		}
+	}
+
+	if cfg.TunMTU < 1280 || cfg.TunMTU > 9000 {
+		return nil, fmt.Errorf("-tun-mtu must be between 1280 and 9000, got %d", cfg.TunMTU)
 	}
 
 	// Validate required fields

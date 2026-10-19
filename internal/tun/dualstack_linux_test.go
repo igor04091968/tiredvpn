@@ -183,3 +183,27 @@ func TestHostRouteExists(t *testing.T) {
 		t.Errorf("hostRouteExists(%s) = false after adding it, want true", absent)
 	}
 }
+
+// The kernel rule must not increase a lower peer-advertised MSS.
+func TestMSSClampOnlyLowers(t *testing.T) {
+	for _, rule := range [][]expr.Any{mssRule("tun0", 1280), mssRuleExprs(expr.MetaKeyIIFNAME, "tun0", 1220)} {
+		loaded, compared := false, false
+		for _, e := range rule {
+			if ex, ok := e.(*expr.Exthdr); ok && ex.DestRegister != 0 {
+				loaded = true
+			}
+			if cmp, ok := e.(*expr.Cmp); ok && cmp.Op == expr.CmpOpGt {
+				if !loaded {
+					t.Fatal("compared MSS before loading it")
+				}
+				compared = true
+			}
+			if ex, ok := e.(*expr.Exthdr); ok && ex.SourceRegister != 0 && !compared {
+				t.Fatal("MSS write lacks a lower-only guard")
+			}
+		}
+		if !compared {
+			t.Fatal("missing MSS > cap guard")
+		}
+	}
+}

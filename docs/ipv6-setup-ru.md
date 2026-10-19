@@ -86,3 +86,5 @@ curl -6 https://api6.ipify.org
 - **В журнале нет dual-stack выдачи:** клиент не запросил IPv6 либо подключён к старому exit/relay без `-ip-pool-v6`.
 
 Настройка Android-клиента описана в [руководстве по IPv6 в приложении](https://github.com/igor04091968/tiredvpn-android/blob/main/docs/ipv6-ru.md).
+
+Подробности расчёта MTU/MSS и проверки крупных пакетов: [MTU IPv4 и IPv6](mtu-ru.md).

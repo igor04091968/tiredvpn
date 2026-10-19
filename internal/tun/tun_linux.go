@@ -1562,6 +1562,11 @@ func mssRuleExprs(ifKey expr.MetaKey, ifName string, mss uint16) []expr.Any {
 			Data:     []byte{0x02}, // SYN only
 		},
 
+		// Read the existing MSS and only reduce it. Raising a peer's smaller
+		// value breaks its receive/path limit (RFC 6691).
+		&expr.Exthdr{DestRegister: 1, Type: 2, Offset: 2, Len: 2, Op: expr.ExthdrOpTcpopt},
+		&expr.Cmp{Op: expr.CmpOpGt, Register: 1, Data: mssBE},
+
 		// load fixed MSS value into reg 1 (network byte order)
 		&expr.Immediate{
 			Register: 1,

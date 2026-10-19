@@ -46,6 +46,7 @@ func newLocalTUNSink(shared *SharedTUN, writer *ClientWriter, clientIP net.IP) *
 }
 
 func (s *localTUNSink) WritePacket(pkt []byte) error {
+	tun.ClampTCPMSS(pkt, s.writer.mtu)
 	_, err := s.shared.TUNDevice().Write(pkt)
 	return err
 }
