@@ -19,12 +19,12 @@ type markPrimitive struct {
 	seen [][]byte
 }
 
-func (m *markPrimitive) Apply(packet []byte) ([][]byte, error) {
+func (m *markPrimitive) Apply(packet []byte) ([]Result, error) {
 	m.seen = append(m.seen, append([]byte(nil), packet...))
 	out := make([]byte, len(packet))
 	copy(out, packet)
 	out[1] = m.mark
-	return [][]byte{out}, nil
+	return []Result{{Packet: out}}, nil
 }
 
 func (m *markPrimitive) String() string { return "mark" }
@@ -60,11 +60,11 @@ func TestActionTreeBranchesRouteResultsIndividually(t *testing.T) {
 	if len(right.seen) != 1 {
 		t.Errorf("branch 1 was handed %d packets, want exactly 1", len(right.seen))
 	}
-	if results[0][1] != 0xA1 {
-		t.Errorf("result 0 carries mark %#x, want %#x from branch 0", results[0][1], 0xA1)
+	if results[0].Packet[1] != 0xA1 {
+		t.Errorf("result 0 carries mark %#x, want %#x from branch 0", results[0].Packet[1], 0xA1)
 	}
-	if results[1][1] != 0xB2 {
-		t.Errorf("result 1 carries mark %#x, want %#x from branch 1", results[1][1], 0xB2)
+	if results[1].Packet[1] != 0xB2 {
+		t.Errorf("result 1 carries mark %#x, want %#x from branch 1", results[1].Packet[1], 0xB2)
 	}
 }
 
@@ -110,7 +110,7 @@ func TestActionTreeWithoutBranchesIsUnchanged(t *testing.T) {
 		t.Fatalf("a branchless duplicate returned %d packets, want 2", len(results))
 	}
 	for i, r := range results {
-		if !bytes.Equal(r, packet) {
+		if !bytes.Equal(r.Packet, packet) {
 			t.Errorf("branchless result %d differs from the input packet", i)
 		}
 	}
@@ -191,11 +191,11 @@ func TestPacketStrategiesLeaveTheRealPacketIntact(t *testing.T) {
 			var intact, decoys int
 			var decoy []byte
 			for _, r := range results {
-				if bytes.Equal(r, before) {
+				if bytes.Equal(r.Packet, before) {
 					intact++
 				} else {
 					decoys++
-					decoy = r
+					decoy = r.Packet
 				}
 			}
 			if intact != 1 {
@@ -238,10 +238,10 @@ func TestDecoyIsSentBeforeTheRealPacket(t *testing.T) {
 			if len(results) != 2 {
 				t.Fatalf("Apply emitted %d packets, want 2", len(results))
 			}
-			if bytes.Equal(results[0], before) {
+			if bytes.Equal(results[0].Packet, before) {
 				t.Errorf("the real packet goes out first; the decoy behind it poisons nothing")
 			}
-			if !bytes.Equal(results[1], before) {
+			if !bytes.Equal(results[1].Packet, before) {
 				t.Errorf("the second packet is not the untouched original")
 			}
 		})
@@ -277,7 +277,7 @@ func TestFragmentStrategiesUnaffected(t *testing.T) {
 			}
 			// Fragments carry the payload between them, so neither is the original.
 			for i, r := range results {
-				if bytes.Equal(r, before) {
+				if bytes.Equal(r.Packet, before) {
 					t.Errorf("fragment %d is the whole original packet - nothing was fragmented", i)
 				}
 			}

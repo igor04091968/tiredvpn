@@ -207,6 +207,38 @@ capability it logs and skips that half.
 The engine also carries a `turkey` rule-set, but no ID registers it. Using it
 needs a code change to add `NewGenevaStrategy(m, secret, "turkey")`.
 
+#### Engine primitives
+
+The Geneva engine is a small packet-manipulation language. Besides the original
+`drop` / `send` / `duplicate` / `fragment` / `tamper`, it now has:
+
+| Primitive | Effect |
+|---|---|
+| `tamper{field,corrupt}` | Sets a header field and leaves the checksum stale, so endpoints drop the decoy while a checksum-blind middlebox still parses it |
+| `corrupt-chksum` | Invalidates the IP and TCP checksums only |
+| `load{old→new}` | Rewrites payload bytes (e.g. a benign `Host:` in a decoy), fixing IP length and checksums; no match = passthrough |
+| `fragment-at{marker,delta}` | Splits the payload `delta` bytes after `marker`, so the split follows a variable-length field such as the hostname |
+| `delay{8ms}` | Holds the packet back; used to make a decoy measurably arrive first |
+| `sni{prefix}` | Rewrites the ClientHello SNI to `prefix`+hex(original), e.g. `xn--6578616d706c652e636f6d` |
+| `truncate{n}` | Keeps the first `n` payload bytes - the one-byte ghost of the ghost/decoy/real triple |
+| `drop-rst` | Inbound only: drops segments with RST set |
+| `drop-early-small{len,window}` | Inbound only: drops PSH+ACK segments shorter than `len` within the first `window` packets of a flow; stateful, per flow |
+| `drop-bare-rst` | Inbound only: drops RST segments that carry no payload |
+| `overlap-split{prefix,overlap}` | Splits the payload into two in-order segments that repeat `overlap` bytes; the server reassembles, a naive reassembler may not |
+
+`delay` needs the injector to drop the queued packet and re-inject it from a
+timer; the rest ride the normal path. `drop-early-small` is the only stateful
+primitive: it keeps a bounded per-flow counter, because "early" is not decidable
+from one packet.
+
+Strategies that act on inbound packets (forged-RST filtering) need a second
+queue. The injector supports it, and the operator provisions both rules:
+
+```
+iptables -I OUTPUT -p tcp -d <server-ip> -m mark ! --mark 0x54495245 -j NFQUEUE --queue-num 0
+iptables -I INPUT  -p tcp -s <server-ip> -m mark ! --mark 0x54495245 -j NFQUEUE --queue-num 2
+```
+
 ### Anti-Probe — `antiprobe`
 
 The server answers unauthenticated connections as an ordinary website and only

@@ -155,7 +155,7 @@ func TestOverlapPrimitiveGeometry(t *testing.T) {
 			if len(out) != 2 {
 				t.Fatalf("Apply() returned %d packets, want 2 (fake, real)", len(out))
 			}
-			fake, realOut := out[0], out[1]
+			fake, realOut := out[0].Packet, out[1].Packet
 
 			// Fake must precede the real segment: check ordering by seq.
 			wantFakeSeq := realSeq - uint32(tt.overlapLen)
@@ -324,7 +324,7 @@ func TestOverlapPrimitivePerConnectionNonce(t *testing.T) {
 			t.Fatalf("conn2 Apply: out=%d err=%v", len(out2), err)
 		}
 
-		m1, m2 := markerOf(t, out1[0]), markerOf(t, out2[0])
+		m1, m2 := markerOf(t, out1[0].Packet), markerOf(t, out2[0].Packet)
 		if bytes.Equal(m1, m2) {
 			t.Fatal("two connections carry the SAME packet marker; per-connection nonce is not applied")
 		}
@@ -351,7 +351,7 @@ func TestOverlapPrimitivePerConnectionNonce(t *testing.T) {
 		if len(out1) != 2 || len(out2) != 2 {
 			t.Fatalf("expected a fake per connection, got %d and %d", len(out1), len(out2))
 		}
-		if !bytes.Equal(markerOf(t, out1[0]), markerOf(t, out2[0])) {
+		if !bytes.Equal(markerOf(t, out1[0].Packet), markerOf(t, out2[0].Packet)) {
 			t.Fatal("static marker unexpectedly differed across connections")
 		}
 	})
@@ -374,7 +374,7 @@ func TestOverlapServerDropperClassify(t *testing.T) {
 	if err != nil || len(out) != 2 {
 		t.Fatalf("Apply: out=%d err=%v", len(out), err)
 	}
-	fake, real := out[0], out[1]
+	fake, real := out[0].Packet, out[1].Packet
 
 	// Positive control: the fake is recognised and dropped.
 	if !overlapPacketIsFake(fake, verify) {
@@ -395,7 +395,7 @@ func TestOverlapServerDropperClassify(t *testing.T) {
 	// Negative control 2: a marker minted under a DIFFERENT secret must not verify.
 	wrongPrim := NewOverlapPrimitiveMinted(testMintFn([]byte("other-secret")))
 	wrongOut, _ := wrongPrim.Apply(createClientHelloPacketPort(200000, 300, 42002))
-	if overlapPacketIsFake(wrongOut[0], verify) {
+	if overlapPacketIsFake(wrongOut[0].Packet, verify) {
 		t.Fatal("fake under a different secret was recognised (must not be)")
 	}
 

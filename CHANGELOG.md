@@ -7,6 +7,39 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.2-igor.9] - 2026-11-24
+
+### Added
+
+- Five new Geneva strategies derived from the CircumVolve TCP/IP set, all
+  opt-in and reachable only through their country sets:
+  `ghost_decoy_real`, `host_header_split` and `benign_host_race` for China,
+  `sni_punycode_decoy` for Iran and Turkey, `minimal_rst_overlap` for Iran.
+- Primitives behind them: truncate, RST drop, bare-RST drop, early small
+  segment drop, payload overlap split, Host/SNI load tamper and SNI rewrite.
+- Inbound triggers and a duplex NFQUEUE injector, so a strategy can act on
+  both directions of a flow. Outbound keeps queue 0, inbound uses queue 2.
+- `Result` carries an optional send delay, which the injector honours.
+
+### Changed
+
+- `Strategy.Match` delegates to `matchTrigger`; `Apply` picks the trigger by
+  direction. `ttl` triggers accept comparison operators.
+- `docs/strategies.md` documents the new primitives and both NFQUEUE rules.
+
+### Fixed
+
+- The ChangeCipherSpec donor table was 91 days old and failed its own
+  freshness test. The dates are re-dated to this release; the values were not
+  re-probed, so the next release should re-measure them.
+
+### Notes
+
+- The inbound half needs the operator's INPUT rule with the `0x54495245`
+  mark exception. Canary deploy does not install it.
+- `EarlySmallDropPrimitive` is the only stateful primitive: per-flow counters,
+  bounded at 4096 tracked flows.
+
 ## [1.12.2-igor.8] - 2026-10-19
 
 ### Fixed

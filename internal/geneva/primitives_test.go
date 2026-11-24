@@ -82,7 +82,7 @@ func TestSendPrimitive(t *testing.T) {
 		t.Errorf("Send.Apply() returned %d packets, want 1", len(result))
 	}
 
-	if len(result) > 0 && len(result[0]) != len(packet) {
+	if len(result) > 0 && len(result[0].Packet) != len(packet) {
 		t.Errorf("Send.Apply() modified packet length")
 	}
 
@@ -120,8 +120,8 @@ func TestDuplicatePrimitive(t *testing.T) {
 
 			// Verify all packets are identical
 			for i, pkt := range result {
-				if len(pkt) != len(packet) {
-					t.Errorf("Packet %d has length %d, want %d", i, len(pkt), len(packet))
+				if len(pkt.Packet) != len(packet) {
+					t.Errorf("Packet %d has length %d, want %d", i, len(pkt.Packet), len(packet))
 				}
 			}
 		})
@@ -143,7 +143,7 @@ func TestTamperFlags(t *testing.T) {
 	}
 
 	// Check flags were modified
-	flags, err := ParseTCPFlags(result[0])
+	flags, err := ParseTCPFlags(result[0].Packet)
 	if err != nil {
 		t.Errorf("ParseTCPFlags() error = %v", err)
 	}
@@ -173,7 +173,7 @@ func TestTamperSeq(t *testing.T) {
 	}
 
 	// Check sequence number was modified
-	seq := binary.BigEndian.Uint32(result[0][24:28])
+	seq := binary.BigEndian.Uint32(result[0].Packet[24:28])
 	if seq != newSeq {
 		t.Errorf("Tamper set seq to %d, want %d", seq, newSeq)
 	}
@@ -195,14 +195,14 @@ func TestTamperTTL(t *testing.T) {
 	}
 
 	// Check TTL was modified
-	ttl := result[0][8]
+	ttl := result[0].Packet[8]
 	if ttl != newTTL {
 		t.Errorf("Tamper set TTL to %d, want %d", ttl, newTTL)
 	}
 
 	// Verify IP checksum was recalculated
 	originalChecksum := binary.BigEndian.Uint16(packet[10:12])
-	newChecksum := binary.BigEndian.Uint16(result[0][10:12])
+	newChecksum := binary.BigEndian.Uint16(result[0].Packet[10:12])
 	if originalChecksum == newChecksum {
 		t.Errorf("IP checksum was not recalculated after TTL change")
 	}
@@ -223,8 +223,8 @@ func TestFragmentPrimitive(t *testing.T) {
 	}
 
 	// Verify payload was split
-	payload1 := result[0][40:] // Payload starts at byte 40
-	payload2 := result[1][40:]
+	payload1 := result[0].Packet[40:] // Payload starts at byte 40
+	payload2 := result[1].Packet[40:]
 
 	if len(payload1) != 5 {
 		t.Errorf("First fragment payload length = %d, want 5", len(payload1))
@@ -236,8 +236,8 @@ func TestFragmentPrimitive(t *testing.T) {
 	}
 
 	// Verify sequence numbers are correct
-	seq1 := binary.BigEndian.Uint32(result[0][24:28])
-	seq2 := binary.BigEndian.Uint32(result[1][24:28])
+	seq1 := binary.BigEndian.Uint32(result[0].Packet[24:28])
+	seq2 := binary.BigEndian.Uint32(result[1].Packet[24:28])
 
 	expectedSeq2 := seq1 + 5
 	if seq2 != expectedSeq2 {

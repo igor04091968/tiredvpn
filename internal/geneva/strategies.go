@@ -1,5 +1,7 @@
 package geneva
 
+import "time"
+
 // Pre-discovered Geneva strategies for various censorship systems
 // Based on academic research and real-world testing
 
@@ -225,9 +227,238 @@ func TurkeyDPIStrategy1() *Strategy {
 	return NewStrategy(trigger, decoyThenReal(tamperSeq), nil)
 }
 
+// GhostDecoyRealStrategy - ghost, then benign-Host decoy, then the real request
+// Strategy: "[TCP:payload:Host: <forbidden>]-duplicate{2}-truncate{1}-corrupt|load{...}-corrupt|send"
+// Inbound: "[TCP:flags:&RST]-drop-|"
+//
+// Description: the HTTP-Host triple from the CircumVolve TCP/IP set.
+//
+// Three packets at the same sequence number, in this order:
+//
+//  1. a one-byte ghost with a bad checksum, so a DPI that parses the first
+//     bytes of a flow commits to a one-byte body;
+//  2. a full-length decoy whose Host header names an allowed domain, also with
+//     a bad checksum, so endpoints drop it but a checksum-blind middlebox
+//     classifies the flow as allowed;
+//  3. the real request, untouched and valid, which the server actually reads.
+//
+// The decoy keeps the original length: the allowed name is padded or truncated
+// to the forbidden name's length, so every offset after the Host header is
+// unchanged and the decoy stays a plausible request.
+//
+// Inbound, all RSTs are dropped. A censor that decides "blocked" kills the flow
+// with a forged RST; swallowing it lets the connection that the server is still
+// serving survive. The cost is that a genuinely reset connection lingers until
+// its own timeout.
+//
+// The inbound half needs the injector's second queue (NewInjectorDuplex) and
+// the operator's INPUT rule; without them only the outbound triple runs.
+func GhostDecoyRealStrategy(forbidden, allowed string) *Strategy {
+	if forbidden == "" {
+		forbidden = "pornhub.com"
+	}
+	if allowed == "" {
+		allowed = "example.com"
+	}
+	// Same-length replacement keeps the decoy byte-for-byte aligned with the
+	// real request outside the hostname.
+	replacement := make([]byte, len(forbidden))
+	for i := range replacement {
+		replacement[i] = 'x'
+	}
+	copy(replacement, allowed)
+
+	outTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "payload",
+		Operator: "contains",
+		Value:    []byte("Host: " + forbidden),
+		Metadata: map[string]string{
+			"name":        "Ghost + Host decoy + real",
+			"description": "One-byte bad-checksum ghost, benign-Host decoy, then the real request; inbound RSTs dropped",
+		},
+	}
+	inTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "flags",
+		Operator: "&",
+		Value:    uint8(TCPFlagRST),
+	}
+
+	tree := NewActionTree(NewDuplicatePrimitive(2))
+	tree.AddBranch(NewActionTree(NewTruncatePrimitive(1), &CorruptChecksumPrimitive{}))
+	tree.AddBranch(NewActionTree(NewLoadTamperPrimitive([]byte(forbidden), replacement), &CorruptChecksumPrimitive{}))
+	tree.AddBranch(NewActionTree(&SendPrimitive{}))
+
+	return NewDuplexStrategy(outTrigger, tree, inTrigger, NewActionTree(&DropPrimitive{}))
+}
+
+// HostHeaderSplitStrategy - split the request before the Host header
+// Strategy: "[TCP:payload:Host:]-fragment-at{Host:,0}-|"
+// Inbound: "[TCP:]-drop-rst-drop-early-small{120,4}-|"
+//
+// Description: the second China recipe from the CircumVolve TCP/IP set.
+//
+// The first request segment is cut in two: everything up to the Host header,
+// then the rest including the forbidden Host. A DPI that parses only the first
+// segment of a flow sees a request with no Host and has nothing to match on; the
+// server reassembles the two in-order segments into the original request.
+//
+// Inbound, forged RSTs are dropped and so are small PSH+ACK segments in the
+// first four server packets - an injected 302 or one-line 404 arrives exactly
+// like that. The window is per flow and the primitive is stateful, so a small
+// real response inside the window is dropped too and recovered by the server's
+// retransmission.
+//
+// The inbound half needs the injector's second queue and the operator's INPUT
+// rule; without them only the split runs.
+func HostHeaderSplitStrategy() *Strategy {
+	outTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "payload",
+		Operator: "contains",
+		Value:    []byte("Host:"),
+		Metadata: map[string]string{
+			"name":        "Host-header split",
+			"description": "Split the first request before Host; inbound RSTs and small early block pages dropped",
+		},
+	}
+	inTrigger := Trigger{Protocol: "TCP"}
+
+	outbound := NewActionTree(NewFragmentAtPrimitive([]byte("Host:"), 0))
+	inbound := NewActionTree(&RSTDropPrimitive{}, NewEarlySmallDropPrimitive(120, 4))
+
+	return NewDuplexStrategy(outTrigger, outbound, inTrigger, inbound)
+}
+
+// BenignHostRaceStrategy - benign-Host twin first, real request 8 ms later
+// Strategy: "[TCP:payload:Host: <forbidden>]-duplicate-load{...}-|delay{8ms}-|"
+// Inbound: "[TCP:]-drop-rst-|"
+//
+// Description: the third China recipe from the CircumVolve TCP/IP set.
+//
+// A copy of the request with the Host header rewritten to an allowed domain is
+// sent first, fully valid; the real request follows 8 ms later at the same
+// sequence number. Both are valid, so the server accepts whichever arrives first
+// and discards the other as a duplicate - the connection still works even if the
+// decoy wins the race. The point is to make the censor's "first request per flow
+// wins" reassembly log the benign Host.
+//
+// The difference from GhostDecoyRealStrategy is that nothing here is corrupted:
+// the decoy is meant to be accepted, not discarded. That makes it safe on paths
+// where the endpoint validates checksums strictly, and it means the strategy
+// cannot be defeated by a checksum check alone.
+//
+// Inbound, all RSTs are dropped so a forged reset does not kill a flow the
+// server is still serving. Needs the injector's inbound queue and the operator's
+// INPUT rule; without them only the race runs.
+func BenignHostRaceStrategy(forbidden, allowed string) *Strategy {
+	if forbidden == "" {
+		forbidden = "pornhub.com"
+	}
+	if allowed == "" {
+		allowed = "example.com"
+	}
+	replacement := make([]byte, len(forbidden))
+	for i := range replacement {
+		replacement[i] = 'x'
+	}
+	copy(replacement, allowed)
+
+	outTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "payload",
+		Operator: "contains",
+		Value:    []byte("Host: " + forbidden),
+		Metadata: map[string]string{
+			"name":        "Benign-Host race",
+			"description": "Valid benign-Host twin first, real request 8 ms later; inbound RSTs dropped",
+		},
+	}
+	inTrigger := Trigger{Protocol: "TCP"}
+
+	tree := NewActionTree(NewDuplicatePrimitive(1))
+	tree.AddBranch(NewActionTree(NewLoadTamperPrimitive([]byte(forbidden), replacement)))
+	tree.AddBranch(NewActionTree(NewDelayPrimitive(8*time.Millisecond), &SendPrimitive{}))
+
+	return NewDuplexStrategy(outTrigger, tree, inTrigger, NewActionTree(&RSTDropPrimitive{}))
+}
+
+// SNIPunycodeDecoyStrategy - punycode-rewritten SNI decoy, then the real hello
+// Strategy: "[TCP:payload:0x1603]-duplicate-sni{xn--}-corrupt|send"
+// Inbound: "[TCP:]-drop-rst-|"
+//
+// Description: own hypothesis, not from a CircumVolve recipe.
+//
+// The decoy carries the same ClientHello with the SNI replaced by
+// `xn--`+hex(original) and a bad checksum, so the server discards it and the
+// censor still parses it. A DPI that matches the SNI as a literal string sees a
+// name it has no rule for; one that decodes punycode sees the hex blob, not the
+// domain. The real hello follows untouched, so the donor handshake and the
+// certificate the server serves are unaffected.
+//
+// The decoy is corrupted on purpose for exactly that reason: the server must not
+// accept it, or it would try to resolve the punycode name as a donor.
+func SNIPunycodeDecoyStrategy() *Strategy {
+	outTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "payload",
+		Operator: "contains",
+		Value:    []byte{0x16, 0x03},
+		Metadata: map[string]string{
+			"name":        "SNI punycode decoy",
+			"description": "Bad-checksum decoy with punycode SNI, then the real ClientHello; inbound RSTs dropped",
+		},
+	}
+	inTrigger := Trigger{Protocol: "TCP"}
+
+	tree := NewActionTree(NewDuplicatePrimitive(1))
+	tree.AddBranch(NewActionTree(NewSNIRewritePrimitive("xn--"), &CorruptChecksumPrimitive{}))
+	tree.AddBranch(NewActionTree(&SendPrimitive{}))
+
+	return NewDuplexStrategy(outTrigger, tree, inTrigger, NewActionTree(&RSTDropPrimitive{}))
+}
+
+// MinimalRSTOverlapStrategy - bare-RST filter, tiny overlap on HTTP requests
+// Strategy: "[TCP:payload:HTTP/1.]-overlap-split{20,2,24}-|"
+// Inbound: "[TCP:]-drop-bare-rst-|"
+//
+// Description: the Pakistan/Iran minimal-desync recipe from the CircumVolve
+// TCP/IP set (pakistan/17ff6086, with the same inbound filter as iran/0367d00b
+// and iran/d5037eed).
+//
+// Only the first HTTP request is split, and only by a couple of bytes: a 20-byte
+// prefix, then the rest starting two bytes before the prefix ends. The server
+// reassembles it into the original request, but a DPI that resolves overlaps
+// naively sees the request line twice and can mis-locate the Host header. The
+// split is confined to HTTP so other protocols on the same tunnel are untouched.
+//
+// Inbound, only payload-less RSTs are dropped. That is narrower than
+// GhostDecoyRealStrategy, which drops every RST: a reset that carries data is
+// kept here.
+func MinimalRSTOverlapStrategy() *Strategy {
+	outTrigger := Trigger{
+		Protocol: "TCP",
+		Field:    "payload",
+		Operator: "contains",
+		Value:    []byte("HTTP/1."),
+		Metadata: map[string]string{
+			"name":        "Minimal RST filter + HTTP overlap",
+			"description": "Two-byte overlap on HTTP requests; only bare inbound RSTs dropped",
+		},
+	}
+	inTrigger := Trigger{Protocol: "TCP"}
+
+	outbound := NewActionTree(NewOverlapSplitPrimitive(20, 2, 24))
+	inbound := NewActionTree(&BareRSTDropPrimitive{})
+
+	return NewDuplexStrategy(outTrigger, outbound, inTrigger, inbound)
+}
+
 // GenericFragmentStrategy - Generic fragmentation bypass
 // Strategy: "[TCP:flags:PA]-fragment{offset:10}-|"
 // Description: Fragment payload to evade basic keyword detection
+// GenericFragmentStrategy splits the first payload-bearing segment.
 func GenericFragmentStrategy() *Strategy {
 	trigger := Trigger{
 		Protocol: "TCP",
@@ -272,17 +503,22 @@ func GenericDuplicateStrategy() *Strategy {
 // GetAllStrategies returns all pre-discovered Geneva strategies
 func GetAllStrategies() map[string]*Strategy {
 	return map[string]*Strategy{
-		"china_gfw_1":      ChinaGFWStrategy1(),
-		"china_gfw_2":      ChinaGFWStrategy2(),
-		"china_gfw_3":      ChinaGFWStrategy3(),
-		"iran_dpi_1":       IranDPIStrategy1(),
-		"iran_dpi_2":       IranDPIStrategy2(),
-		"russia_tspu_1":    RussiaTSPUStrategy1(),
-		"russia_tspu_2":    RussiaTSPUStrategy2(),
-		"russia_tspu_3":    RussiaTSPUStrategy3(),
-		"turkey_dpi_1":     TurkeyDPIStrategy1(),
-		"generic_fragment": GenericFragmentStrategy(),
-		"generic_dup":      GenericDuplicateStrategy(),
+		"china_gfw_1":         ChinaGFWStrategy1(),
+		"china_gfw_2":         ChinaGFWStrategy2(),
+		"china_gfw_3":         ChinaGFWStrategy3(),
+		"iran_dpi_1":          IranDPIStrategy1(),
+		"iran_dpi_2":          IranDPIStrategy2(),
+		"russia_tspu_1":       RussiaTSPUStrategy1(),
+		"russia_tspu_2":       RussiaTSPUStrategy2(),
+		"russia_tspu_3":       RussiaTSPUStrategy3(),
+		"turkey_dpi_1":        TurkeyDPIStrategy1(),
+		"ghost_decoy_real":    GhostDecoyRealStrategy("", ""),
+		"host_header_split":   HostHeaderSplitStrategy(),
+		"benign_host_race":    BenignHostRaceStrategy("", ""),
+		"sni_punycode_decoy":  SNIPunycodeDecoyStrategy(),
+		"minimal_rst_overlap": MinimalRSTOverlapStrategy(),
+		"generic_fragment":    GenericFragmentStrategy(),
+		"generic_dup":         GenericDuplicateStrategy(),
 	}
 }
 
@@ -303,11 +539,16 @@ func GetStrategiesByCountry(country string) []*Strategy {
 			all["china_gfw_1"],
 			all["china_gfw_2"],
 			all["china_gfw_3"],
+			all["ghost_decoy_real"],
+			all["host_header_split"],
+			all["benign_host_race"],
 		)
 	case "iran", "ir":
 		result = append(result,
 			all["iran_dpi_1"],
 			all["iran_dpi_2"],
+			all["sni_punycode_decoy"],
+			all["minimal_rst_overlap"],
 		)
 	case "russia", "ru":
 		result = append(result,
@@ -316,7 +557,10 @@ func GetStrategiesByCountry(country string) []*Strategy {
 			all["russia_tspu_3"],
 		)
 	case "turkey", "tr":
-		result = append(result, all["turkey_dpi_1"])
+		result = append(result,
+			all["turkey_dpi_1"],
+			all["sni_punycode_decoy"],
+		)
 	default:
 		// Return generic strategies
 		result = append(result,

@@ -91,6 +91,18 @@ func (g *GenevaStrategy) Description() string {
 		g.country, count, strings.Join(rates, ", "))
 }
 
+// genevaInQueue is the NFQUEUE the inbound half attaches to. The outbound half
+// uses queue 0; the inbound queue is one above the seqovl queue so the three
+// never collide. The operator provisions both rules, each with the mark
+// exclusion:
+//
+//	iptables -I OUTPUT -p tcp -d <server-ip> -m mark ! --mark 0x54495245 -j NFQUEUE --queue-num 0
+//	iptables -I INPUT  -p tcp -s <server-ip> -m mark ! --mark 0x54495245 -j NFQUEUE --queue-num 2
+//
+// Without the INPUT rule the inbound trees simply never fire; the outbound
+// manipulation is unaffected.
+const genevaInQueue = 2
+
 // startInjector brings up the NFQUEUE Injector on Linux when CAP_NET_ADMIN is
 // available. It is called lazily on the first Connect() via sync.Once so that
 // the cost is paid only when the strategy is actually used.
@@ -103,7 +115,7 @@ func (g *GenevaStrategy) startInjector() {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		inj := geneva.NewInjector(0, g.strategies)
+		inj := geneva.NewInjectorDuplex(0, genevaInQueue, g.strategies)
 		if err := inj.Start(ctx); err != nil {
 			cancel()
 			log.Debug("Geneva: NFQUEUE injector failed to start: %v", err)

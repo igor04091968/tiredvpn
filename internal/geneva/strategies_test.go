@@ -7,7 +7,7 @@ import (
 func TestGetAllStrategies(t *testing.T) {
 	strategies := GetAllStrategies()
 
-	expectedCount := 11
+	expectedCount := 16
 	if len(strategies) != expectedCount {
 		t.Errorf("GetAllStrategies() returned %d strategies, want %d", len(strategies), expectedCount)
 	}
@@ -17,6 +17,11 @@ func TestGetAllStrategies(t *testing.T) {
 		"china_gfw_1",
 		"china_gfw_2",
 		"china_gfw_3",
+		"ghost_decoy_real",
+		"host_header_split",
+		"benign_host_race",
+		"sni_punycode_decoy",
+		"minimal_rst_overlap",
 		"iran_dpi_1",
 		"iran_dpi_2",
 		"russia_tspu_1",
@@ -65,14 +70,14 @@ func TestGetStrategiesByCountry(t *testing.T) {
 		country       string
 		expectedCount int
 	}{
-		{"china", 3},
-		{"cn", 3},
-		{"iran", 2},
-		{"ir", 2},
+		{"china", 6},
+		{"cn", 6},
+		{"iran", 4},
+		{"ir", 4},
 		{"russia", 3},
 		{"ru", 3},
-		{"turkey", 1},
-		{"tr", 1},
+		{"turkey", 2},
+		{"tr", 2},
 		{"unknown", 2}, // Generic strategies
 		{"", 2},        // Generic strategies
 	}
@@ -228,8 +233,8 @@ func TestGenericFragmentStrategy(t *testing.T) {
 
 	// Verify both fragments have content
 	for i, pkt := range results {
-		if len(pkt) < 40 {
-			t.Errorf("Fragment %d too short: %d bytes", i, len(pkt))
+		if len(pkt.Packet) < 40 {
+			t.Errorf("Fragment %d too short: %d bytes", i, len(pkt.Packet))
 		}
 	}
 }

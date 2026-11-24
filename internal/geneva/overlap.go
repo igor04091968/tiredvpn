@@ -116,7 +116,7 @@ func NewOverlapPrimitiveMinted(mint func() []byte) *OverlapPrimitive {
 // Apply emits [fake, real] for the first data-bearing segment (fake first so it
 // precedes the real segment on the wire). Segments with no TCP payload, or any
 // segment after the first when Once is set, pass through unchanged.
-func (o *OverlapPrimitive) Apply(packet []byte) ([][]byte, error) {
+func (o *OverlapPrimitive) Apply(packet []byte) ([]Result, error) {
 	if len(packet) < 20 {
 		return nil, errors.New("packet too short for IP header")
 	}
@@ -130,7 +130,7 @@ func (o *OverlapPrimitive) Apply(packet []byte) ([][]byte, error) {
 
 	// No payload (pure ACK, SYN, etc.): nothing to overlap.
 	if len(packet) <= payloadStart {
-		return [][]byte{packet}, nil
+		return []Result{{Packet: packet}}, nil
 	}
 
 	// Fire at most once per connection (keyed by the TCP 4-tuple), not once per
@@ -139,7 +139,7 @@ func (o *OverlapPrimitive) Apply(packet []byte) ([][]byte, error) {
 	if o.Once {
 		key := overlapConnKey(packet, tcpStart)
 		if _, loaded := o.firedConns.LoadOrStore(key, struct{}{}); loaded {
-			return [][]byte{packet}, nil
+			return []Result{{Packet: packet}}, nil
 		}
 		if o.firedCount.Add(1) > overlapFiredCap {
 			o.firedConns.Range(func(k, _ any) bool { o.firedConns.Delete(k); return true })
@@ -155,7 +155,7 @@ func (o *OverlapPrimitive) Apply(packet []byte) ([][]byte, error) {
 	if o.MintMarker != nil {
 		marker = o.MintMarker()
 		if len(marker) == 0 {
-			return [][]byte{packet}, nil
+			return []Result{{Packet: packet}}, nil
 		}
 	}
 
@@ -192,7 +192,7 @@ func (o *OverlapPrimitive) Apply(packet []byte) ([][]byte, error) {
 	realSeg := make([]byte, len(packet))
 	copy(realSeg, packet)
 
-	return [][]byte{fake, realSeg}, nil
+	return []Result{{Packet: fake}, {Packet: realSeg}}, nil
 }
 
 // String returns a human-readable description.

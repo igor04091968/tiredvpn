@@ -12,6 +12,10 @@ type Strategy struct {
 	Trigger      Trigger
 	OutboundTree *ActionTree
 	InboundTree  *ActionTree
+	// InboundTrigger, when set, replaces Trigger for inbound packets. A single
+	// trigger cannot describe both directions when they look different - an
+	// outbound HTTP request and an inbound forged RST share no field.
+	InboundTrigger *Trigger
 }
 
 // Trigger defines when to apply a strategy
@@ -44,8 +48,23 @@ func NewStrategy(trigger Trigger, outbound, inbound *ActionTree) *Strategy {
 	}
 }
 
-// Match checks if the trigger matches the packet
+// NewDuplexStrategy creates a strategy with separate inbound and outbound
+// triggers, for the strategies that act on both directions.
+func NewDuplexStrategy(outTrigger Trigger, outbound *ActionTree, inTrigger Trigger, inbound *ActionTree) *Strategy {
+	return &Strategy{
+		Trigger:        outTrigger,
+		OutboundTree:   outbound,
+		InboundTree:    inbound,
+		InboundTrigger: &inTrigger,
+	}
+}
+
+// Match checks if the outbound trigger matches the packet
 func (s *Strategy) Match(packet []byte) (bool, error) {
+	return matchTrigger(&s.Trigger, packet)
+}
+
+func matchTrigger(t *Trigger, packet []byte) (bool, error) {
 	if len(packet) < 20 {
 		return false, errors.New("packet too short")
 	}
@@ -55,15 +74,15 @@ func (s *Strategy) Match(packet []byte) (bool, error) {
 	protocol := packet[9]
 
 	// Check protocol match
-	if s.Trigger.Protocol == "TCP" && protocol != 6 {
+	if t.Protocol == "TCP" && protocol != 6 {
 		return false, nil
 	}
-	if s.Trigger.Protocol == "UDP" && protocol != 17 {
+	if t.Protocol == "UDP" && protocol != 17 {
 		return false, nil
 	}
 
 	// Check field match
-	switch s.Trigger.Field {
+	switch t.Field {
 	case "flags":
 		if protocol != 6 {
 			return false, nil
@@ -73,12 +92,12 @@ func (s *Strategy) Match(packet []byte) (bool, error) {
 			return false, err
 		}
 
-		expectedFlags, ok := s.Trigger.Value.(uint8)
+		expectedFlags, ok := t.Value.(uint8)
 		if !ok {
 			return false, errors.New("invalid trigger value for flags")
 		}
 
-		switch s.Trigger.Operator {
+		switch t.Operator {
 		case "==":
 			return flags == expectedFlags, nil
 		case "!=":
@@ -88,6 +107,31 @@ func (s *Strategy) Match(packet []byte) (bool, error) {
 			return (flags & expectedFlags) != 0, nil
 		default:
 			return flags == expectedFlags, nil
+		}
+
+	case "ttl":
+		// IP TTL. Numeric comparison so a strategy can say "only packets that
+		// still have most of their hop budget" instead of one exact value.
+		expectedTTL, ok := t.Value.(uint8)
+		if !ok {
+			return false, errors.New("invalid trigger value for ttl")
+		}
+		ttl := packet[8]
+		switch t.Operator {
+		case "==":
+			return ttl == expectedTTL, nil
+		case "!=":
+			return ttl != expectedTTL, nil
+		case "<":
+			return ttl < expectedTTL, nil
+		case ">":
+			return ttl > expectedTTL, nil
+		case "<=":
+			return ttl <= expectedTTL, nil
+		case ">=":
+			return ttl >= expectedTTL, nil
+		default:
+			return ttl == expectedTTL, nil
 		}
 
 	case "payload":
@@ -105,12 +149,12 @@ func (s *Strategy) Match(packet []byte) (bool, error) {
 		}
 
 		payload := packet[payloadStart:]
-		expectedBytes, ok := s.Trigger.Value.([]byte)
+		expectedBytes, ok := t.Value.([]byte)
 		if !ok {
 			return false, errors.New("invalid trigger value for payload")
 		}
 
-		if s.Trigger.Operator == "contains" {
+		if t.Operator == "contains" {
 			return contains(payload, expectedBytes), nil
 		}
 
@@ -122,15 +166,19 @@ func (s *Strategy) Match(packet []byte) (bool, error) {
 }
 
 // Apply applies the strategy to a packet
-func (s *Strategy) Apply(packet []byte, isOutbound bool) ([][]byte, error) {
-	match, err := s.Match(packet)
+func (s *Strategy) Apply(packet []byte, isOutbound bool) ([]Result, error) {
+	trigger := &s.Trigger
+	if !isOutbound && s.InboundTrigger != nil {
+		trigger = s.InboundTrigger
+	}
+	match, err := matchTrigger(trigger, packet)
 	if err != nil {
 		return nil, err
 	}
 
 	if !match {
 		// No match, return packet unmodified
-		return [][]byte{packet}, nil
+		return []Result{{Packet: packet}}, nil
 	}
 
 	// Apply appropriate tree
@@ -140,7 +188,7 @@ func (s *Strategy) Apply(packet []byte, isOutbound bool) ([][]byte, error) {
 	}
 
 	if tree == nil {
-		return [][]byte{packet}, nil
+		return []Result{{Packet: packet}}, nil
 	}
 
 	return tree.Execute(packet)
@@ -163,13 +211,17 @@ func (s *Strategy) Apply(packet []byte, isOutbound bool) ([][]byte, error) {
 // When the root yields more results than there are branches the surplus goes to
 // the last branch, so duplicate{count=N} with two branches still means "the
 // original down one branch, all N copies down the other".
-func (t *ActionTree) Execute(packet []byte) ([][]byte, error) {
+func (t *ActionTree) Execute(packet []byte) ([]Result, error) {
+	return t.execute(Result{Packet: packet})
+}
+
+func (t *ActionTree) execute(in Result) ([]Result, error) {
 	if t == nil || t.Root == nil {
-		return [][]byte{packet}, nil
+		return []Result{in}, nil
 	}
 
 	// Execute root node
-	results, err := t.Root.Execute(packet)
+	results, err := t.Root.execute(in)
 	if err != nil {
 		return nil, err
 	}
@@ -178,13 +230,13 @@ func (t *ActionTree) Execute(packet []byte) ([][]byte, error) {
 		return results, nil
 	}
 
-	var finalResults [][]byte
-	for i, pkt := range results {
+	var finalResults []Result
+	for i, res := range results {
 		idx := i
 		if idx >= len(t.Branches) {
 			idx = len(t.Branches) - 1
 		}
-		branchResults, err := t.Branches[idx].Execute(pkt)
+		branchResults, err := t.Branches[idx].execute(res)
 		if err != nil {
 			return nil, err
 		}
@@ -194,22 +246,34 @@ func (t *ActionTree) Execute(packet []byte) ([][]byte, error) {
 }
 
 // Execute executes the action node (and following nodes) on a packet
-func (n *ActionNode) Execute(packet []byte) ([][]byte, error) {
+func (n *ActionNode) Execute(packet []byte) ([]Result, error) {
+	return n.execute(Result{Packet: packet})
+}
+
+func (n *ActionNode) execute(in Result) ([]Result, error) {
 	if n == nil {
-		return [][]byte{packet}, nil
+		return []Result{in}, nil
 	}
 
 	// Apply current primitive
-	results, err := n.Primitive.Apply(packet)
+	results, err := n.Primitive.Apply(in.Packet)
 	if err != nil {
 		return nil, err
 	}
 
+	// A delay already stamped upstream survives a later primitive that does not
+	// set one, so DelayPrimitive can sit anywhere in the chain.
+	for i := range results {
+		if results[i].Delay == 0 {
+			results[i].Delay = in.Delay
+		}
+	}
+
 	// If there's a next node, apply it to all results
 	if n.Next != nil {
-		var finalResults [][]byte
-		for _, pkt := range results {
-			nextResults, err := n.Next.Execute(pkt)
+		var finalResults []Result
+		for _, res := range results {
+			nextResults, err := n.Next.execute(res)
 			if err != nil {
 				return nil, err
 			}
